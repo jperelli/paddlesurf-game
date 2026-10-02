@@ -24,14 +24,14 @@ export interface Roster {
   spotIndex: number;
 }
 
-const KEY = 'paddlesurf.roster.v5';
+const KEY = 'paddlesurf.roster.v6';
 
 export function defaultRoster(): Roster {
   return {
     surfers: [
       { name: 'Julian', palette: { ...DEFAULT_SURFER } },
-      { name: 'Friend 1', palette: { ...DEFAULT_SURFER, board: '#2f7fb8', boardNose: '#f4f4f4', boardTail: '#f4f4f4' } },
-      { name: 'Friend 2', palette: { ...DEFAULT_SURFER, board: '#f0f0ea', boardNose: '#2aa4b5', boardTail: '#2aa4b5' } },
+      { name: 'Alfredo', palette: { ...DEFAULT_SURFER, board: '#2f7fb8', boardNose: '#f4f4f4', boardTail: '#f4f4f4' } },
+      { name: 'Ferchu', palette: { ...DEFAULT_SURFER, board: '#f0f0ea', boardNose: '#2aa4b5', boardTail: '#2aa4b5' } },
     ],
     spots: [
       {
