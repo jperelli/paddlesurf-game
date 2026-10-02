@@ -37,6 +37,7 @@ Pick the spot on the start screen (or in settings):
 
 - **San Clemente del Tuyú**: colours from the first photo (olive face, grey-blue water), small waves (0.9–1.3 m), lulls of 3–7 small waves then sets of 4–5. 60% of set waves are A-frames with both pockets, 20% are rights only, 20% lefts only.
 - **Chicama, Peru**: colours from the second photo (teal water, blue sky), waves twice the size (1.8–2.6 m), lulls of 1–2 small waves then long sets of 8–10. Every wave peels right only: everything on the left of the peak is whitewater, the only pocket is on the right.
+- **Praia do Rosa, Brazil** (Imbituba, Santa Catarina): characteristics from surf guides (brazilsurftravel.com, wannasurf.com, wavemasterai.com.br): sandy beach break, rights and lefts, 0.5–2.5 m, fast and powerful with quick sections and barrel potential, very consistent; the lefts at Rosa Norte are the longer, hollower ones. In the game: 1.2–2.0 m, lulls of 3–6 then sets of 4–7, peels fast, more sections/closeouts, 30% A-frames / 30% rights only / 40% lefts only. Water colours sampled from the Wikimedia Commons photo "Praia do Rosa Norte.jpg" (grey-teal water, clear blue sky, pale sand).
 
 Surfers (name + colours) and spots (name, wave height range, how fast it peels, how often it closes out, rights/lefts share, waves per set, water colours) are editable and saved in the browser (`localStorage`). "Reset to defaults" restores the built-in roster in `src/roster.ts`.
 

@@ -35,6 +35,16 @@ export const CHICAMA_WATER: WaterPalette = {
   sand: '#bfae8e',
 };
 
+/** Praia do Rosa (Imbituba, SC, Brazil): sampled from a Rosa Norte photo on Wikimedia Commons
+ *  ("Praia do Rosa Norte.jpg"): grey-teal water, clear blue sky, pale sand. */
+export const PRAIA_DO_ROSA_WATER: WaterPalette = {
+  sky: '#6a9ccb',
+  deep: '#4e6670',
+  face: '#6a8486',
+  foam: '#eef2f1',
+  sand: '#d8ceb6',
+};
+
 export const DEFAULT_WATER: WaterPalette = SAN_CLEMENTE_WATER;
 
 // The paddler (photo 1): black full wetsuit, red board with an orange nose and a yellow-green tail, dark paddle.

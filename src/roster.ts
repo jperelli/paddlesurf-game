@@ -1,4 +1,11 @@
-import { CHICAMA_WATER, DEFAULT_SURFER, SAN_CLEMENTE_WATER, type SurferPalette, type WaterPalette } from './palette';
+import {
+  CHICAMA_WATER,
+  DEFAULT_SURFER,
+  PRAIA_DO_ROSA_WATER,
+  SAN_CLEMENTE_WATER,
+  type SurferPalette,
+  type WaterPalette,
+} from './palette';
 import type { SpotConfig } from './wave';
 
 export interface Surfer {
@@ -17,7 +24,7 @@ export interface Roster {
   spotIndex: number;
 }
 
-const KEY = 'paddlesurf.roster.v4';
+const KEY = 'paddlesurf.roster.v5';
 
 export function defaultRoster(): Roster {
   return {
@@ -58,6 +65,24 @@ export function defaultRoster(): Roster {
         setMin: 8,
         setMax: 10,
         water: { ...CHICAMA_WATER },
+      },
+      {
+        // Beach break, lefts and rights, 0.5–2.5 m, fast and powerful with sections and
+        // barrels; the lefts at Rosa Norte are the longer, hollower ones. Very consistent.
+        name: 'Praia do Rosa, Brazil',
+        minHeight: 1.2,
+        maxHeight: 2.0,
+        peelSpeed: 3.8,
+        sectionChance: 0.45,
+        peakRange: 30,
+        waveSpeed: 6,
+        rightOnly: 0.3,
+        leftOnly: 0.4,
+        lullMin: 3,
+        lullMax: 6,
+        setMin: 4,
+        setMax: 7,
+        water: { ...PRAIA_DO_ROSA_WATER },
       },
     ],
     surferIndex: 0,
