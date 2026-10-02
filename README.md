@@ -2,6 +2,8 @@
 
 A small 3D stand-up paddle surfing game (TypeScript + Vite + Three.js) built around the breaks and people we actually surf with.
 
+Play it at https://paddlesurf.coffee.jperelli.com.ar (deployed from `main` via Coolify).
+
 ## Play
 
 ```sh
