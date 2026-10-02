@@ -57,13 +57,13 @@ export class Hud {
         <h1>Paddle Surf</h1>
         <p>Wait for the set, paddle into the <b>pocket</b> next to the peak (not on it), then ride away from the breaking lip.</p>
         <ul>
-          <li><b>Arrows</b>: paddle (waiting) · left/right steer, up/down step forward/back on the board (riding)</li>
+          <li><b>Arrows</b> (or the on-screen pad): paddle (waiting) · left/right steer, up/down step forward/back on the board (riding)</li>
           <li><b>Space</b>: power stroke while paddling (tires you out)</li>
           <li><b>H</b>: toggle peak/pocket hints · <b>Esc</b>: settings (surfers, spots, colours)</li>
         </ul>
-        <p class="go">Press any key to paddle out</p>
+        <p class="go">Press any key or tap to paddle out</p>
       </div>
-      <div class="panel bottom controls">←↑↓→ paddle / steer · Space power · ↑↓ stance while riding · H hints · Esc settings</div>
+      <div class="panel bottom controls keyboard-only">←↑↓→ paddle / steer · Space power · ↑↓ stance while riding · H hints · Esc settings</div>
     `;
     const q = (id: string) => root.querySelector<HTMLElement>(id)!;
     this.phaseEl = q('#hud-phase');
@@ -115,7 +115,7 @@ export class Hud {
     this.endCard.innerHTML = `
       <h2 class="${wipe ? 'bad' : 'good'}">${END_TITLES[reason]}</h2>
       <p>${rideTime > 0 ? `Ride ${rideTime.toFixed(1)} s · ` : ''}<b>+${points}</b> points</p>
-      <p class="go">Press any key to paddle back out</p>`;
+      <p class="go">Press any key or tap to paddle back out</p>`;
     this.endCard.classList.remove('hidden');
   }
 

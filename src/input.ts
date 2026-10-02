@@ -13,6 +13,21 @@ export class Input {
     window.addEventListener('blur', () => this.down.clear());
   }
 
+  /** Virtual key down (on-screen controls). */
+  press(code: string): void {
+    if (!this.down.has(code)) this.pressed.add(code);
+    this.down.add(code);
+  }
+
+  release(code: string): void {
+    this.down.delete(code);
+  }
+
+  /** A tap counts as "any key". */
+  tap(): void {
+    this.pressed.add('Tap');
+  }
+
   isDown(code: string): boolean {
     return this.down.has(code);
   }

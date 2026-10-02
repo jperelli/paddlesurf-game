@@ -126,6 +126,9 @@ export class Game {
     const h = window.innerHeight;
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h;
+    // Portrait phones: shift the frame up so the surfer sits above the on-screen controls.
+    if (h > w) this.camera.setViewOffset(w, h, 0, h * 0.13, w, h);
+    else this.camera.clearViewOffset();
     this.camera.updateProjectionMatrix();
   }
 

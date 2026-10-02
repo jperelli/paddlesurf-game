@@ -70,3 +70,42 @@ html, body, #app { margin: 0; height: 100%; overflow: hidden; background: #000; 
 .swatches { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-top: 8px; }
 .swatch { display: inline-flex !important; align-items: center; gap: 6px; font-size: 12px; margin: 0 !important; }
 .swatch input { width: 28px; height: 22px; padding: 0; border: none; background: none; }
+
+/* ---- touch controls & small screens ---- */
+body { touch-action: none; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
+#app { height: 100dvh; }
+.touch { position: absolute; inset: 0; pointer-events: none; }
+.tbtn {
+  pointer-events: auto; position: absolute; border: 1px solid rgba(255,255,255,0.35); border-radius: 14px;
+  background: rgba(12, 20, 28, 0.55); color: #eef2f5; font: 700 22px/1 system-ui, sans-serif;
+  width: 62px; height: 62px; touch-action: none; backdrop-filter: blur(4px);
+}
+.tbtn.held { background: rgba(242, 200, 75, 0.85); color: #111; border-color: #f2c84b; }
+.dpad {
+  position: absolute; left: max(14px, env(safe-area-inset-left)); bottom: max(14px, env(safe-area-inset-bottom));
+  width: 194px; height: 194px;
+}
+.dpad .up { left: 66px; top: 0; }
+.dpad .left { left: 0; top: 66px; }
+.dpad .right { left: 132px; top: 66px; }
+.dpad .down { left: 66px; top: 132px; }
+.tbtn.power {
+  right: max(14px, env(safe-area-inset-right)); bottom: max(28px, env(safe-area-inset-bottom));
+  width: 96px; height: 96px; border-radius: 50%; font-size: 15px; letter-spacing: 0.08em;
+}
+.tmenu { position: absolute; right: max(14px, env(safe-area-inset-right)); top: max(14px, env(safe-area-inset-top)); display: flex; gap: 8px; }
+.tbtn.small { position: static; width: auto; height: 36px; padding: 0 12px; font-size: 13px; font-weight: 600; border-radius: 10px; }
+body.touch-device .keyboard-only { display: none; }
+
+@media (max-width: 720px), (max-height: 500px) {
+  .top-left { left: 8px; top: max(8px, env(safe-area-inset-top)); min-width: 0; max-width: 58vw; padding: 8px 10px; font-size: 12px; }
+  .top-left .label.small:last-child { display: none; }
+  .stance-row .label.small { display: none; }
+  .msg { top: 12%; font-size: 15px; padding: 8px 12px; max-width: 90vw; }
+}
+@media (max-width: 720px) and (orientation: portrait) {
+  .msg { top: 30%; }
+  .card { min-width: 0; width: min(92vw, 560px); max-height: 86dvh; overflow-y: auto; padding: 16px 18px; font-size: 14px; }
+  .card.start h1 { font-size: 24px; }
+  .settings { width: 100vw; }
+}
