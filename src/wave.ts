@@ -38,6 +38,18 @@ export const FADE_Z = 28;
 export const SHORE_Z = 52;
 export const BEACH_Z = 58;
 export const SMALL_WAVE_MAX = 0.5;
+/** Width (m) of the curling lip zone next to the whitewater: the pocket. */
+export const CURL_WIDTH = 9;
+
+export interface SeaPoint {
+  y: number;
+  z: number;
+}
+
+function smoothstep(a: number, b: number, x: number): number {
+  const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
+  return t * t * (3 - 2 * t);
+}
 
 export function crestZ(w: Wave, t: number): number {
   return w.z0 + w.speed * (t - w.t0);
@@ -80,22 +92,56 @@ export function brokenAmount(w: Wave, x: number, t: number, spot: SpotConfig): n
   return best;
 }
 
+/**
+ * How hollow the wave is at x: 0 = rolling swell, 1 = standing-up, pitching face.
+ * Set waves stand up as they reach the break zone; hollowest next to the whitewater (the pocket),
+ * softer out on the shoulder.
+ */
+export function steepness(w: Wave, x: number, t: number, spot: SpotConfig): number {
+  if (!w.isSet) return 0;
+  const cz = crestZ(w, t);
+  const ramp = smoothstep(BREAK_Z - 14, BREAK_Z + 1, cz) * fadeAt(cz);
+  if (ramp <= 0) return 0;
+  const dx = Math.abs(x - w.peakX) - brokenHalfWidth(w, t, spot);
+  const lateral = dx <= CURL_WIDTH ? 1 : 0.35 + 0.65 * Math.exp(-(((dx - CURL_WIDTH) / 10) ** 2));
+  return ramp * lateral;
+}
+
 /** Asymmetric profile across the travel direction. d > 0 is the shore side (steep face). */
-export function profile(d: number, L: number): number {
-  const s = d > 0 ? 0.55 * L : 1.6 * L;
-  const u = d / s;
+export function profile(d: number, L: number, steep = 0, broken = 0): number {
+  if (d > 0) {
+    const s = L * (0.55 - 0.22 * steep) * (1 + 0.5 * broken);
+    const p = 2 + 1.6 * steep;
+    return Math.exp(-((d / s) ** p));
+  }
+  const u = d / (1.6 * L);
   return Math.exp(-u * u);
 }
 
-export function waveHeightAt(w: Wave, x: number, z: number, t: number, spot: SpotConfig): number {
+/**
+ * Displacement of the water at material position (x, z) from this wave: vertical rise plus a
+ * forward (shoreward) lean so a hollow face stands up near-vertical and the whitewater runs ahead.
+ */
+export function waveDisplaceAt(w: Wave, x: number, z: number, t: number, spot: SpotConfig, out: SeaPoint): void {
   const cz = crestZ(w, t);
   const d = z - cz;
   const L = w.length;
-  if (d > 3.5 * L || d < -5 * L) return 0;
+  if (d > 3.5 * L || d < -5 * L) return;
   const h = localHeight(w, x, t);
   const broken = brokenAmount(w, x, t, spot);
+  const steep = steepness(w, x, t, spot) * (1 - broken);
   const amp = h * (1 - 0.35 * broken);
-  return amp * profile(d, L);
+  const f = profile(d, L, steep, broken);
+  let y = amp * f;
+  if (broken > 0) y += broken * 0.12 * amp * Math.sin(2.7 * x + 6 * t) * Math.cos(1.9 * d - 4 * t);
+  out.y += y;
+  out.z += (0.7 * steep * amp + 0.9 * broken * amp) * f * f;
+}
+
+export function waveHeightAt(w: Wave, x: number, z: number, t: number, spot: SpotConfig): number {
+  const p: SeaPoint = { y: 0, z: 0 };
+  waveDisplaceAt(w, x, z, t, spot, p);
+  return p.y;
 }
 
 export function chopAt(x: number, z: number, t: number): number {
@@ -106,10 +152,17 @@ export function chopAt(x: number, z: number, t: number): number {
   );
 }
 
+/** World-space surface point for material coordinates (x, z): height plus forward lean. */
+export function seaPointAt(waves: Wave[], x: number, z: number, t: number, spot: SpotConfig, out: SeaPoint): SeaPoint {
+  out.y = chopAt(x, z, t);
+  out.z = z;
+  for (const w of waves) waveDisplaceAt(w, x, z, t, spot, out);
+  return out;
+}
+
+const _pt: SeaPoint = { y: 0, z: 0 };
 export function seaHeightAt(waves: Wave[], x: number, z: number, t: number, spot: SpotConfig): number {
-  let h = chopAt(x, z, t);
-  for (const w of waves) h += waveHeightAt(w, x, z, t, spot);
-  return h;
+  return seaPointAt(waves, x, z, t, spot, _pt).y;
 }
 
 function rand(a: number, b: number): number {

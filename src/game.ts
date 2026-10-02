@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Input } from './input';
 import { Sea } from './sea';
+import { Lips } from './lip';
 import { SurferRig, type Stance } from './surfer';
 import {
   BREAK_Z,
@@ -12,6 +13,8 @@ import {
   faceLength,
   localHeight,
   seaHeightAt,
+  seaPointAt,
+  type SeaPoint,
   type Wave,
 } from './wave';
 import type { Spot, Surfer } from './roster';
@@ -48,6 +51,8 @@ export class Game {
   readonly input = new Input();
   readonly scheduler: WaveScheduler;
   readonly sea: Sea;
+  private lips: Lips;
+  private surfPt: SeaPoint = { y: 0, z: 0 };
   readonly rig: SurferRig;
   private hemi: THREE.HemisphereLight;
   private hintGroup = new THREE.Group();
@@ -100,6 +105,8 @@ export class Game {
 
     this.sea = new Sea(spot.water);
     this.scene.add(this.sea.mesh, this.sea.beach);
+    this.lips = new Lips(spot.water);
+    this.scene.add(this.lips.group);
     this.scheduler = new WaveScheduler(spot);
 
     this.rig = new SurferRig(surfer.palette);
@@ -136,6 +143,7 @@ export class Game {
     this.spot = spot;
     this.scheduler.spot = spot;
     this.sea.setPalette(spot.water);
+    this.lips.setPalette(spot.water);
     const sky = new THREE.Color(spot.water.sky);
     this.scene.background = sky;
     this.scene.fog = new THREE.Fog(sky, 70, 190);
@@ -192,6 +200,7 @@ export class Game {
     }
 
     this.sea.update(this.scheduler.waves, this.t, this.spot);
+    this.lips.update(this.scheduler.waves, this.t, this.spot, dt);
     this.placeRig();
     this.updateHints();
     this.updateCamera(dt);
@@ -395,9 +404,9 @@ export class Game {
   private placeRig(): void {
     const waves = this.scheduler.waves;
     const t = this.t;
-    const y = seaHeightAt(waves, this.x, this.z, t, this.spot);
+    const p = seaPointAt(waves, this.x, this.z, t, this.spot, this.surfPt);
     const g = this.rig.group;
-    g.position.set(this.x, y + 0.02, this.z);
+    g.position.set(this.x, p.y + 0.02, p.z);
     const fx = Math.sin(this.heading);
     const fz = Math.cos(this.heading);
     const ahead = seaHeightAt(waves, this.x + fx, this.z + fz, t, this.spot);
@@ -435,8 +444,8 @@ export class Game {
       const side = i === 0 ? 1 : -1;
       const px = w.peakX + side * (half + POCKET_WIDTH / 2);
       const pz = cz + 0.5;
-      const py = seaHeightAt(this.scheduler.waves, px, pz, this.t, this.spot) + 0.15;
-      this.pocketMarkers[i].position.set(px, py, pz);
+      const p = seaPointAt(this.scheduler.waves, px, pz, this.t, this.spot, this.surfPt);
+      this.pocketMarkers[i].position.set(px, p.y + 0.15, p.z);
     }
   }
 

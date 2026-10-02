@@ -17,7 +17,7 @@ export interface Roster {
   spotIndex: number;
 }
 
-const KEY = 'paddlesurf.roster.v2';
+const KEY = 'paddlesurf.roster.v3';
 
 export function defaultRoster(): Roster {
   return {

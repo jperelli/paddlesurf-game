@@ -20,10 +20,10 @@ export interface SurferPalette {
 // Everything below is sampled from Julian's reference photo: olive-green face, grey-blue deep water,
 // hazy sky, black full wetsuit, red board with an orange nose and a yellow-green tail, dark paddle.
 export const DEFAULT_WATER: WaterPalette = {
-  sky: '#90aec7',
-  deep: '#4f5671',
-  face: '#636046',
-  foam: '#e9eae6',
+  sky: '#86b0e6',
+  deep: '#20575f',
+  face: '#357b95',
+  foam: '#e6ebf0',
   sand: '#c9b58a',
 };
 
