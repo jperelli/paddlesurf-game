@@ -1,14 +1,13 @@
 import type { Input } from './input';
 import type { SettingsPanel } from './settings';
 
-const PAD: { code: string; cls: string; label: string }[] = [
-  { code: 'ArrowUp', cls: 'up', label: '▲' },
-  { code: 'ArrowLeft', cls: 'left', label: '◀' },
-  { code: 'ArrowRight', cls: 'right', label: '▶' },
-  { code: 'ArrowDown', cls: 'down', label: '▼' },
-];
+const STICK_R = 72;
+const DEAD = 0.18;
+/** 8-way sectors from a unit direction, with hysteresis so a wobble on the edge does not re-press. */
+const SECTOR_ON = 0.45;
+const SECTOR_OFF = 0.3;
 
-/** On-screen controls for touch devices: D-pad, power button, hints/settings, tap-to-continue. */
+/** On-screen controls for touch devices: virtual joystick, power button, hints/settings, tap-to-continue. */
 export class TouchControls {
   private root: HTMLElement;
 
@@ -16,7 +15,7 @@ export class TouchControls {
     this.root = root;
     root.className = 'touch';
     root.innerHTML = `
-      <div class="dpad">${PAD.map((b) => `<button class="tbtn ${b.cls}" data-code="${b.code}">${b.label}</button>`).join('')}</div>
+      <div class="stick" id="stick"><div class="stick-ring"><span>▲</span><span>▶</span><span>▼</span><span>◀</span></div><div class="stick-knob"></div></div>
       <button class="tbtn power" data-code="Space">POWER</button>
       <div class="tmenu">
         <button class="tbtn small" data-tap="KeyH">Hints</button>
@@ -41,6 +40,8 @@ export class TouchControls {
       btn.addEventListener('lostpointercapture', up);
       btn.addEventListener('contextmenu', (e) => e.preventDefault());
     }
+    this.bindStick(root.querySelector<HTMLElement>('#stick')!, input);
+
     root.querySelector<HTMLButtonElement>('button[data-tap]')!.addEventListener('pointerdown', (e) => {
       e.preventDefault();
       input.press('KeyH');
@@ -66,6 +67,66 @@ export class TouchControls {
     };
     apply();
     coarse.addEventListener('change', apply);
+  }
+
+  private bindStick(stick: HTMLElement, input: Input): void {
+    const knob = stick.querySelector<HTMLElement>('.stick-knob')!;
+    const held = new Set<string>();
+    let pointer: number | null = null;
+
+    const setHeld = (code: string, on: boolean) => {
+      if (on && !held.has(code)) {
+        held.add(code);
+        input.press(code);
+      } else if (!on && held.has(code)) {
+        held.delete(code);
+        input.release(code);
+      }
+    };
+    const axis = (v: number, pos: string, neg: string) => {
+      setHeld(pos, v > (held.has(pos) ? SECTOR_OFF : SECTOR_ON));
+      setHeld(neg, v < -(held.has(neg) ? SECTOR_OFF : SECTOR_ON));
+    };
+    const move = (e: PointerEvent) => {
+      const r = stick.getBoundingClientRect();
+      let dx = e.clientX - (r.left + r.width / 2);
+      let dy = e.clientY - (r.top + r.height / 2);
+      const len = Math.hypot(dx, dy);
+      if (len > STICK_R) {
+        dx *= STICK_R / len;
+        dy *= STICK_R / len;
+      }
+      knob.style.transform = `translate(${dx}px, ${dy}px)`;
+      if (len < DEAD * STICK_R) {
+        for (const c of ['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowUp']) setHeld(c, false);
+        return;
+      }
+      axis(dx / len, 'ArrowRight', 'ArrowLeft');
+      axis(dy / len, 'ArrowDown', 'ArrowUp');
+    };
+    const end = () => {
+      pointer = null;
+      stick.classList.remove('held');
+      knob.style.transform = '';
+      for (const c of [...held]) setHeld(c, false);
+    };
+    stick.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      if (pointer !== null) return;
+      pointer = e.pointerId;
+      stick.setPointerCapture(e.pointerId);
+      stick.classList.add('held');
+      move(e);
+    });
+    stick.addEventListener('pointermove', (e) => {
+      if (e.pointerId === pointer) move(e);
+    });
+    for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture'] as const) {
+      stick.addEventListener(ev, (e) => {
+        if (e.pointerId === pointer) end();
+      });
+    }
+    stick.addEventListener('contextmenu', (e) => e.preventDefault());
   }
 
   get element(): HTMLElement {

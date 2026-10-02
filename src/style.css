@@ -90,14 +90,23 @@ body { touch-action: none; -webkit-tap-highlight-color: transparent; user-select
   width: 62px; height: 62px; touch-action: none; backdrop-filter: blur(4px);
 }
 .tbtn.held { background: rgba(242, 200, 75, 0.85); color: #111; border-color: #f2c84b; }
-.dpad {
-  position: absolute; left: max(14px, env(safe-area-inset-left)); bottom: max(14px, env(safe-area-inset-bottom));
-  width: 194px; height: 194px;
+.stick {
+  pointer-events: auto; position: absolute; left: max(14px, env(safe-area-inset-left)); bottom: max(14px, env(safe-area-inset-bottom));
+  width: 190px; height: 190px; border-radius: 50%; touch-action: none;
+  background: rgba(12, 20, 28, 0.45); border: 1px solid rgba(255,255,255,0.3); backdrop-filter: blur(4px);
 }
-.dpad .up { left: 66px; top: 0; }
-.dpad .left { left: 0; top: 66px; }
-.dpad .right { left: 132px; top: 66px; }
-.dpad .down { left: 66px; top: 132px; }
+.stick-ring { position: absolute; inset: 0; color: rgba(255,255,255,0.45); font-size: 14px; pointer-events: none; }
+.stick-ring span { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); }
+.stick-ring span:nth-child(1) { top: 14px; }
+.stick-ring span:nth-child(2) { left: calc(100% - 14px); }
+.stick-ring span:nth-child(3) { top: calc(100% - 14px); }
+.stick-ring span:nth-child(4) { left: 14px; }
+.stick-knob {
+  position: absolute; left: 50%; top: 50%; width: 76px; height: 76px; margin: -38px 0 0 -38px; border-radius: 50%;
+  background: rgba(238, 242, 245, 0.8); border: 2px solid rgba(255,255,255,0.6); pointer-events: none;
+  transition: transform 0.08s;
+}
+.stick.held .stick-knob { background: rgba(242, 200, 75, 0.9); border-color: #f2c84b; transition: none; }
 .tbtn.power {
   right: max(14px, env(safe-area-inset-right)); bottom: max(28px, env(safe-area-inset-bottom));
   width: 96px; height: 96px; border-radius: 50%; font-size: 15px; letter-spacing: 0.08em;

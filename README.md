@@ -23,7 +23,7 @@ Open the printed URL, press any key and paddle out.
 3. **End of the wave.** Either a section closes out in front of you (or the foam catches you from behind), you climb over the back, or the wave fades out near the shore with no push left. Points depend on wave size, time on the face and how high in the pocket you ride.
 4. Press any key to paddle back out. Wipeouts cost extra energy.
 
-On phones and tablets an on-screen D-pad, POWER button and Hints/Settings buttons replace the keyboard; tap the screen to start or paddle back out.
+On phones and tablets an on-screen joystick (drag the knob, diagonals work), POWER button and Hints/Settings buttons replace the keyboard; tap the screen to start or paddle back out.
 
 `H` toggles the learning hints (red cone = peak, green bars = the two pockets). `Esc` opens settings.
 
