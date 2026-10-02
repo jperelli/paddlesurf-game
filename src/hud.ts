@@ -35,6 +35,7 @@ export class Hud {
   private whoEl: HTMLElement;
   private endCard: HTMLElement;
   private startCard: HTMLElement;
+  private spotsEl: HTMLElement;
   private msgTimer = 0;
 
   constructor(root: HTMLElement) {
@@ -55,6 +56,8 @@ export class Hud {
       <div id="hud-end" class="card hidden"></div>
       <div id="hud-start" class="card start">
         <h1>Paddle Surf</h1>
+        <div class="label">Spot</div>
+        <div id="hud-spots" class="spots"></div>
         <p>Wait for the set, paddle into the <b>pocket</b> next to the peak (not on it), then ride away from the breaking lip.</p>
         <ul>
           <li><b>Arrows</b> (or the on-screen pad): paddle (waiting) · left/right steer, up/down step forward/back on the board (riding)</li>
@@ -78,6 +81,25 @@ export class Hud {
     this.whoEl = q('#hud-who');
     this.endCard = q('#hud-end');
     this.startCard = q('#hud-start');
+    this.spotsEl = q('#hud-spots');
+  }
+
+  /** Level picker on the start card. Clicks here must not count as "press any key". */
+  setSpots(spots: { name: string; desc: string }[], index: number, onPick: (i: number) => void): void {
+    this.spotsEl.innerHTML = '';
+    spots.forEach((s, i) => {
+      const b = document.createElement('button');
+      b.className = `spot${i === index ? ' on' : ''}`;
+      b.innerHTML = `<b></b><span></span>`;
+      b.querySelector('b')!.textContent = s.name;
+      b.querySelector('span')!.textContent = s.desc;
+      b.addEventListener('pointerdown', (e) => e.stopPropagation());
+      b.addEventListener('click', (e) => {
+        e.stopPropagation();
+        onPick(i);
+      });
+      this.spotsEl.appendChild(b);
+    });
   }
 
   update(s: HudState, now: number): void {

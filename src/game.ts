@@ -12,6 +12,8 @@ import {
   crestZ,
   faceLength,
   localHeight,
+  peelLabel,
+  pocketOffset,
   seaHeightAt,
   seaPointAt,
   type SeaPoint,
@@ -261,16 +263,19 @@ export class Game {
       return;
     }
     this.wavesSeen++;
-    const half = brokenHalfWidth(w, t, this.spot);
+    const off = pocketOffset(w, this.x, t, this.spot);
     const dx = this.x - w.peakX;
-    const adx = Math.abs(dx);
-    const side: 1 | -1 = dx >= 0 ? 1 : -1;
-    if (adx < half + 1.2) {
-      this.hud.flash('Right under the peak. The lip landed on you.');
+    const side: 1 | -1 = w.peel !== 0 ? w.peel : dx >= 0 ? 1 : -1;
+    if (off < 1.2) {
+      if (w.peel !== 0 && dx * w.peel < -1.2) {
+        this.hud.flash(`Wrong side: this one only goes ${w.peel === 1 ? 'right' : 'left'}. The whitewater got you.`);
+      } else {
+        this.hud.flash('Right under the peak. The lip landed on you.');
+      }
       this.endRide('peak', w);
       return;
     }
-    if (adx < half + POCKET_WIDTH) {
+    if (off < POCKET_WIDTH) {
       if (this.vx * side < -0.8) {
         this.hud.flash('In the pocket but paddling into the peak. Wave lost.');
         return;
@@ -282,7 +287,7 @@ export class Game {
       this.startRide(w, side);
       return;
     }
-    if (adx < half + POCKET_WIDTH + 10) this.hud.flash('Too far on the shoulder, it passed under you.');
+    if (off < POCKET_WIDTH + 10) this.hud.flash('Too far on the shoulder, it passed under you.');
     else this.hud.flash('Missed it, too far from the peak.');
   }
 
@@ -446,6 +451,7 @@ export class Game {
       const pz = cz + 0.5;
       const p = seaPointAt(this.scheduler.waves, px, pz, this.t, this.spot, this.surfPt);
       this.pocketMarkers[i].position.set(px, p.y + 0.15, p.z);
+      this.pocketMarkers[i].visible = w.peel === 0 || w.peel === side;
     }
   }
 
@@ -480,7 +486,7 @@ export class Game {
     const next = this.scheduler.nextSetWave(this.t, this.z);
     if (next) {
       const dist = Math.round(this.z - crestZ(next, this.t));
-      return `Set wave ${next.setIndex}/${next.setSize} · ${next.height.toFixed(1)} m · ${dist} m out`;
+      return `Set wave ${next.setIndex}/${next.setSize} · ${next.height.toFixed(1)} m · ${peelLabel(next)} · ${dist} m out`;
     }
     return this.scheduler.modeLabel === 'set' ? 'Set wave on the way' : 'Lull. Small waves, the set is coming.';
   }

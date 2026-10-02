@@ -1,8 +1,13 @@
 // Wave model: sets, peak/pockets, breaking fronts and the height field the sea mesh samples.
 
+/** Which way a wave peels: 0 = A-frame (both pockets), 1 = rights only (+x), -1 = lefts only (-x). */
+export type Peel = 0 | 1 | -1;
+
 export interface BreakFront {
   x: number;
   startT: number;
+  /** 0 breaks both ways from x; ±1 peels one way, everything behind it is whitewater. */
+  dir: Peel;
 }
 
 export interface Wave {
@@ -20,6 +25,7 @@ export interface Wave {
   fronts: BreakFront[];
   nextSectionT: number;
   passedSurfer: boolean;
+  peel: Peel;
 }
 
 export interface SpotConfig {
@@ -30,6 +36,14 @@ export interface SpotConfig {
   sectionChance: number;
   peakRange: number;
   waveSpeed: number;
+  /** Share of set waves that peel only right / only left; the rest are A-frames. */
+  rightOnly: number;
+  leftOnly: number;
+  /** Small waves per lull and big waves per set. */
+  lullMin: number;
+  lullMax: number;
+  setMin: number;
+  setMax: number;
 }
 
 export const SPAWN_Z = -80;
@@ -78,6 +92,19 @@ export function brokenHalfWidth(w: Wave, t: number, spot: SpotConfig): number {
   return spot.peelSpeed * (t - w.fronts[0].startT);
 }
 
+/**
+ * Signed distance (m) from the edge of the whitewater out along the open face, on the side(s) the wave
+ * peels to. Negative = already broken (or behind a one-way wave's peak).
+ */
+export function pocketOffset(w: Wave, x: number, t: number, spot: SpotConfig): number {
+  const dx = x - w.peakX;
+  return (w.peel === 0 ? Math.abs(dx) : dx * w.peel) - brokenHalfWidth(w, t, spot);
+}
+
+export function peelLabel(w: Wave): string {
+  return w.peel === 1 ? 'right →' : w.peel === -1 ? '← left' : '← A-frame →';
+}
+
 /** 0 = green face, 1 = whitewater. Soft 1.5 m edge. */
 export function brokenAmount(w: Wave, x: number, t: number, spot: SpotConfig): number {
   let best = 0;
@@ -85,7 +112,7 @@ export function brokenAmount(w: Wave, x: number, t: number, spot: SpotConfig): n
   if (cz > FADE_Z + 4) best = Math.min(1, (cz - FADE_Z - 4) / 6);
   for (const f of w.fronts) {
     const r = spot.peelSpeed * (t - f.startT);
-    const d = Math.abs(x - f.x) - r;
+    const d = (f.dir === 0 ? Math.abs(x - f.x) : (x - f.x) * f.dir) - r;
     const a = d <= 0 ? 1 : Math.max(0, 1 - d / 1.5);
     if (a > best) best = a;
   }
@@ -102,7 +129,7 @@ export function steepness(w: Wave, x: number, t: number, spot: SpotConfig): numb
   const cz = crestZ(w, t);
   const ramp = smoothstep(BREAK_Z - 14, BREAK_Z + 1, cz) * fadeAt(cz);
   if (ramp <= 0) return 0;
-  const dx = Math.abs(x - w.peakX) - brokenHalfWidth(w, t, spot);
+  const dx = pocketOffset(w, x, t, spot);
   const lateral = dx <= CURL_WIDTH ? 1 : 0.35 + 0.65 * Math.exp(-(((dx - CURL_WIDTH) / 10) ** 2));
   return ramp * lateral;
 }
@@ -172,10 +199,17 @@ function randInt(a: number, b: number): number {
   return Math.floor(rand(a, b + 1));
 }
 
-const RAMPS: Record<number, number[]> = {
-  4: [0.75, 1.0, 0.95, 0.75],
-  5: [0.7, 0.9, 1.0, 0.9, 0.72],
-};
+/** Set waves build up and then tail off: wave i of n. */
+function setRamp(i: number, n: number): number {
+  return 0.7 + 0.3 * Math.sin((Math.PI * (i + 0.5)) / n);
+}
+
+function pickPeel(spot: SpotConfig): Peel {
+  const r = Math.random();
+  if (r < spot.rightOnly) return 1;
+  if (r < spot.rightOnly + spot.leftOnly) return -1;
+  return 0;
+}
 
 export class WaveScheduler {
   waves: Wave[] = [];
@@ -215,15 +249,15 @@ export class WaveScheduler {
     for (const w of this.waves) {
       const cz = crestZ(w, t);
       if (w.isSet && w.fronts.length === 0 && cz >= BREAK_Z) {
-        w.fronts.push({ x: w.peakX, startT: t });
+        w.fronts.push({ x: w.peakX, startT: t, dir: w.peel });
         w.nextSectionT = t + rand(3, 7);
       }
       if (w.isSet && w.fronts.length > 0 && t > w.nextSectionT && cz < FADE_Z) {
         w.nextSectionT = t + rand(3.5, 8);
         if (Math.random() < spot.sectionChance) {
           const half = brokenHalfWidth(w, t, spot);
-          const side = Math.random() < 0.5 ? -1 : 1;
-          w.fronts.push({ x: w.peakX + side * (half + rand(9, 22)), startT: t });
+          const side = w.peel !== 0 ? w.peel : Math.random() < 0.5 ? -1 : 1;
+          w.fronts.push({ x: w.peakX + side * (half + rand(9, 22)), startT: t, dir: 0 });
         }
       }
     }
@@ -235,7 +269,7 @@ export class WaveScheduler {
     if (this.remaining <= 0) {
       if (this.mode === 'lull') {
         this.mode = 'set';
-        this.setSize = randInt(4, 5);
+        this.setSize = randInt(spot.setMin, spot.setMax);
         this.remaining = this.setSize;
         this.setIndex = 0;
         this.setBaseH = rand(spot.minHeight, spot.maxHeight);
@@ -243,28 +277,28 @@ export class WaveScheduler {
         this.lastSetPeakX = this.setPeakX;
       } else {
         this.mode = 'lull';
-        this.remaining = randInt(3, 7);
+        this.remaining = randInt(spot.lullMin, spot.lullMax);
       }
     }
     let wave: Wave;
     if (this.mode === 'set') {
-      const ramp = RAMPS[this.setSize][this.setIndex];
+      const ramp = setRamp(this.setIndex, this.setSize);
       const h = this.setBaseH * ramp * rand(0.9, 1.1);
-      wave = this.makeWave(t, h, this.setPeakX + rand(-4, 4), true);
+      wave = this.makeWave(t, h, this.setPeakX + rand(-4, 4), true, pickPeel(spot));
       wave.setIndex = this.setIndex + 1;
       wave.setSize = this.setSize;
       this.setIndex++;
       this.nextSpawnT = t + rand(7, 8.5);
     } else {
       const h = rand(0.2, 0.42);
-      wave = this.makeWave(t, h, rand(-spot.peakRange, spot.peakRange), false);
+      wave = this.makeWave(t, h, rand(-spot.peakRange, spot.peakRange), false, 0);
       this.nextSpawnT = t + rand(4, 5.5);
     }
     this.remaining--;
     this.waves.push(wave);
   }
 
-  private makeWave(t: number, height: number, peakX: number, isSet: boolean): Wave {
+  private makeWave(t: number, height: number, peakX: number, isSet: boolean, peel: Peel): Wave {
     return {
       id: this.nextId++,
       height,
@@ -280,6 +314,7 @@ export class WaveScheduler {
       fronts: [],
       nextSectionT: Infinity,
       passedSurfer: false,
+      peel,
     };
   }
 

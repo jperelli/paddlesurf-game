@@ -117,7 +117,7 @@ export class Lips {
   }
 
   setPalette(p: WaterPalette): void {
-    this.lipColor.set(p.face).lerp(new THREE.Color('#a9dcf7'), 0.42);
+    this.lipColor.set(p.face).lerp(new THREE.Color(p.sky), 0.5);
     this.foamColor.set(p.foam);
   }
 
@@ -140,7 +140,8 @@ export class Lips {
       const cz = crestZ(w, t);
       if (cz > FADE_Z + 2) continue;
       const half = brokenHalfWidth(w, t, spot);
-      for (const side of [1, -1] as const) {
+      const sides: (1 | -1)[] = w.peel === 0 ? [1, -1] : [w.peel];
+      for (const side of sides) {
         if (used >= POOL) break;
         const strip = this.strips[used++];
         this.fill(strip, w, side, half, cz, waves, t, spot, dt);

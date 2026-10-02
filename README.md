@@ -31,7 +31,14 @@ On phones and tablets an on-screen D-pad, POWER button and Hints/Settings button
 
 The colours and the player are taken from Julian's reference photo and baked in: olive-green wave face, grey-blue deep water, a paddler in a black full wetsuit crouched side-on to the wave, and a red SUP with an orange striped nose and a yellow-green tail. Nothing has to be loaded at runtime; `src/palette.ts` holds the sampled colours and `src/surfer.ts` builds the board deck and the paddler from them.
 
-Surfers (name + colours) and spots (name, wave height range, how fast it peels, how often it closes out, water colours) are editable and saved in the browser (`localStorage`). "Reset to defaults" restores the built-in roster in `src/roster.ts`.
+## Spots (levels)
+
+Pick the spot on the start screen (or in settings):
+
+- **San Clemente del Tuyú**: colours from the first photo (olive face, grey-blue water), small waves (0.9–1.3 m), lulls of 3–7 small waves then sets of 4–5. 60% of set waves are A-frames with both pockets, 20% are rights only, 20% lefts only.
+- **Chicama, Peru**: colours from the second photo (teal water, blue sky), waves twice the size (1.8–2.6 m), lulls of 1–2 small waves then long sets of 8–10. Every wave peels right only: everything on the left of the peak is whitewater, the only pocket is on the right.
+
+Surfers (name + colours) and spots (name, wave height range, how fast it peels, how often it closes out, rights/lefts share, waves per set, water colours) are editable and saved in the browser (`localStorage`). "Reset to defaults" restores the built-in roster in `src/roster.ts`.
 
 ## Code map
 

@@ -71,7 +71,7 @@ export class Sea {
     this.deep.set(p.deep);
     this.face.set(p.face);
     this.foam.set(p.foam);
-    this.lip.copy(this.face).lerp(new THREE.Color('#9fd8ff'), 0.55);
+    this.lip.copy(this.face).lerp(new THREE.Color(p.sky), 0.6);
     this.shadow.copy(this.foam).lerp(this.deep, 0.45);
     (this.beach.material as THREE.MeshStandardMaterial).color.set(p.sand);
   }

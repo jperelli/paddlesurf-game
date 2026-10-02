@@ -17,15 +17,27 @@ export interface SurferPalette {
   blade: string;
 }
 
-// Everything below is sampled from Julian's reference photo: olive-green face, grey-blue deep water,
-// hazy sky, black full wetsuit, red board with an orange nose and a yellow-green tail, dark paddle.
-export const DEFAULT_WATER: WaterPalette = {
+// Sampled from Julian's photos. San Clemente del Tuyú (photo 1): olive-green face, grey-blue deep water,
+// hazy sky. Chicama (photo 2): deep teal water, clear blue sky, desert sand.
+export const SAN_CLEMENTE_WATER: WaterPalette = {
+  sky: '#90aec7',
+  deep: '#4f5671',
+  face: '#636046',
+  foam: '#e9eae6',
+  sand: '#c9b58a',
+};
+
+export const CHICAMA_WATER: WaterPalette = {
   sky: '#86b0e6',
   deep: '#20575f',
   face: '#357b95',
   foam: '#e6ebf0',
-  sand: '#c9b58a',
+  sand: '#bfae8e',
 };
+
+export const DEFAULT_WATER: WaterPalette = SAN_CLEMENTE_WATER;
+
+// The paddler (photo 1): black full wetsuit, red board with an orange nose and a yellow-green tail, dark paddle.
 
 export const DEFAULT_SURFER: SurferPalette = {
   wetsuit: '#1a1722',

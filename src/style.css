@@ -40,6 +40,15 @@ html, body, #app { margin: 0; height: 100%; overflow: hidden; background: #000; 
 .card.start { max-width: 560px; text-align: left; }
 .card.start h1 { margin: 0 0 8px; }
 .card.start ul { padding-left: 18px; }
+.spots { display: flex; gap: 8px; margin: 4px 0 12px; flex-wrap: wrap; }
+.spots .spot {
+  flex: 1 1 200px; text-align: left; cursor: pointer; font: inherit; color: inherit;
+  background: rgba(255,255,255,0.08); border: 2px solid rgba(255,255,255,0.18); border-radius: 10px; padding: 10px 12px;
+}
+.spots .spot:hover { background: rgba(255,255,255,0.16); }
+.spots .spot.on { border-color: #f2c84b; background: rgba(242,200,75,0.18); }
+.spots .spot b { display: block; font-size: 15px; }
+.spots .spot span { display: block; font-size: 12px; opacity: 0.8; margin-top: 2px; }
 .card .go { text-align: center; font-weight: 700; opacity: 0.9; animation: pulse 1.6s infinite; }
 .card h2.bad { color: #ff8a73; margin: 0 0 6px; }
 .card h2.good { color: #86e39a; margin: 0 0 6px; }

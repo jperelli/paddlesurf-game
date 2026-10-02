@@ -1,4 +1,4 @@
-import { DEFAULT_SURFER, DEFAULT_WATER, type SurferPalette, type WaterPalette } from './palette';
+import { CHICAMA_WATER, DEFAULT_SURFER, SAN_CLEMENTE_WATER, type SurferPalette, type WaterPalette } from './palette';
 import type { SpotConfig } from './wave';
 
 export interface Surfer {
@@ -17,7 +17,7 @@ export interface Roster {
   spotIndex: number;
 }
 
-const KEY = 'paddlesurf.roster.v3';
+const KEY = 'paddlesurf.roster.v4';
 
 export function defaultRoster(): Roster {
   return {
@@ -28,39 +28,47 @@ export function defaultRoster(): Roster {
     ],
     spots: [
       {
-        name: 'Home break',
-        minHeight: 1.1,
-        maxHeight: 2.0,
-        peelSpeed: 3.2,
+        name: 'San Clemente del Tuyú',
+        minHeight: 0.9,
+        maxHeight: 1.3,
+        peelSpeed: 3.0,
         sectionChance: 0.35,
         peakRange: 22,
-        waveSpeed: 6,
-        water: { ...DEFAULT_WATER },
-      },
-      {
-        name: 'Point (long walls)',
-        minHeight: 1.0,
-        maxHeight: 1.6,
-        peelSpeed: 2.6,
-        sectionChance: 0.15,
-        peakRange: 30,
         waveSpeed: 5.5,
-        water: { ...DEFAULT_WATER, face: '#3f6b6a', deep: '#2f4f66', sky: '#a9c4d8' },
+        rightOnly: 0.2,
+        leftOnly: 0.2,
+        lullMin: 3,
+        lullMax: 7,
+        setMin: 4,
+        setMax: 5,
+        water: { ...SAN_CLEMENTE_WATER },
       },
       {
-        name: 'Beachie (fast, closes out)',
-        minHeight: 1.3,
-        maxHeight: 2.4,
-        peelSpeed: 4.2,
-        sectionChance: 0.6,
-        peakRange: 15,
-        waveSpeed: 6.5,
-        water: { ...DEFAULT_WATER, face: '#6f6a4c', deep: '#5a6274', sky: '#9fb3c4' },
+        name: 'Chicama, Peru',
+        minHeight: 1.8,
+        maxHeight: 2.6,
+        peelSpeed: 3.4,
+        sectionChance: 0.15,
+        peakRange: 25,
+        waveSpeed: 6,
+        rightOnly: 1,
+        leftOnly: 0,
+        lullMin: 1,
+        lullMax: 2,
+        setMin: 8,
+        setMax: 10,
+        water: { ...CHICAMA_WATER },
       },
     ],
     surferIndex: 0,
     spotIndex: 0,
   };
+}
+
+/** One-line description of a spot for the level picker. */
+export function describeSpot(s: Spot): string {
+  const dir = s.rightOnly >= 1 ? 'rights only' : s.leftOnly >= 1 ? 'lefts only' : 'lefts & rights';
+  return `${s.minHeight.toFixed(1)}–${s.maxHeight.toFixed(1)} m · sets of ${s.setMin}–${s.setMax} · ${dir}`;
 }
 
 export function loadRoster(): Roster {

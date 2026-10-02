@@ -31,6 +31,10 @@ export class SettingsPanel {
           <label>Max height (m) <input id="st-maxh" type="number" step="0.1" min="0.5" max="4" /></label>
           <label>Peel speed (m/s) <input id="st-peel" type="number" step="0.1" min="1" max="8" /></label>
           <label>Closeout chance <input id="st-section" type="number" step="0.05" min="0" max="1" /></label>
+          <label>Rights only (share) <input id="st-right" type="number" step="0.05" min="0" max="1" /></label>
+          <label>Lefts only (share) <input id="st-left" type="number" step="0.05" min="0" max="1" /></label>
+          <label>Waves per set (min) <input id="st-setmin" type="number" step="1" min="1" max="12" /></label>
+          <label>Waves per set (max) <input id="st-setmax" type="number" step="1" min="1" max="12" /></label>
         </div>
       </section>
       <section>
@@ -53,6 +57,11 @@ export class SettingsPanel {
 
   private q<T extends HTMLElement>(sel: string): T {
     return this.root.querySelector<T>(sel)!;
+  }
+
+  /** Re-read the roster (e.g. after the start-card level picker changed the spot). */
+  refresh(): void {
+    this.render();
   }
 
   toggle(force?: boolean): void {
@@ -99,7 +108,8 @@ export class SettingsPanel {
       this.apply();
       this.render();
     };
-    const num = (id: string, key: 'minHeight' | 'maxHeight' | 'peelSpeed' | 'sectionChance') => {
+    type NumKey = 'minHeight' | 'maxHeight' | 'peelSpeed' | 'sectionChance' | 'rightOnly' | 'leftOnly' | 'setMin' | 'setMax';
+    const num = (id: string, key: NumKey) => {
       this.q<HTMLInputElement>(id).onchange = (e) => {
         const v = Number((e.target as HTMLInputElement).value);
         if (Number.isFinite(v)) this.spot[key] = v;
@@ -110,6 +120,10 @@ export class SettingsPanel {
     num('#st-maxh', 'maxHeight');
     num('#st-peel', 'peelSpeed');
     num('#st-section', 'sectionChance');
+    num('#st-right', 'rightOnly');
+    num('#st-left', 'leftOnly');
+    num('#st-setmin', 'setMin');
+    num('#st-setmax', 'setMax');
 
     this.q('#st-save').onclick = () => {
       saveRoster(this.roster);
@@ -146,6 +160,10 @@ export class SettingsPanel {
     this.q<HTMLInputElement>('#st-maxh').value = String(this.spot.maxHeight);
     this.q<HTMLInputElement>('#st-peel').value = String(this.spot.peelSpeed);
     this.q<HTMLInputElement>('#st-section').value = String(this.spot.sectionChance);
+    this.q<HTMLInputElement>('#st-right').value = String(this.spot.rightOnly);
+    this.q<HTMLInputElement>('#st-left').value = String(this.spot.leftOnly);
+    this.q<HTMLInputElement>('#st-setmin').value = String(this.spot.setMin);
+    this.q<HTMLInputElement>('#st-setmax').value = String(this.spot.setMax);
     this.renderSwatches();
   }
 
