@@ -67,8 +67,6 @@ html, body, #app { margin: 0; height: 100%; overflow: hidden; background: #000; 
 .settings button.danger { border-color: #e5533d; color: #ff9a86; }
 .settings .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; }
 .settings .small { font-size: 12px; opacity: 0.75; }
-.settings canvas { display: block; max-width: 100%; margin: 8px 0; cursor: crosshair; background: rgba(255,255,255,0.04); border-radius: 6px; }
-.targets { display: flex; flex-wrap: wrap; }
 .swatches { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-top: 8px; }
 .swatch { display: inline-flex !important; align-items: center; gap: 6px; font-size: 12px; margin: 0 !important; }
 .swatch input { width: 28px; height: 22px; padding: 0; border: none; background: none; }

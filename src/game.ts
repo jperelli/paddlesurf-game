@@ -412,7 +412,7 @@ export class Game {
     const riding = this.phase === 'riding';
     const crouch = riding ? 0.6 + 0.4 * Math.abs(this.ride?.lean ?? 0) / 0.35 : 0;
     const stroke = this.phase === 'waiting' ? this.strokePhase : 0;
-    this.rig.pose(this.stance, stroke, Math.min(1, crouch), this.paddleSide);
+    this.rig.pose(this.stance, stroke, Math.min(1, crouch), riding && this.ride ? (-this.ride.dir as 1 | -1) : this.paddleSide);
   }
 
   private updateHints(): void {

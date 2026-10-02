@@ -23,9 +23,9 @@ Open the printed URL, press any key and paddle out.
 
 `H` toggles the learning hints (red cone = peak, green bars = the two pockets). `Esc` opens settings.
 
-## Realism from a photo
+## Look
 
-Settings (`Esc`) lets you load a photo of the spot, click "Wave face", "Deep water", "Sky", "Wetsuit", "Board", ... and then click on the photo to sample that colour. "Auto water from photo" takes a quick guess from the top, middle and bottom bands. The defaults are sampled from Julian's photo: olive-green water, black wetsuit, red board with a yellow tail.
+The colours and the player are taken from Julian's reference photo and baked in: olive-green wave face, grey-blue deep water, a paddler in a black full wetsuit crouched side-on to the wave, and a red SUP with an orange striped nose and a yellow-green tail. Nothing has to be loaded at runtime; `src/palette.ts` holds the sampled colours and `src/surfer.ts` builds the board deck and the paddler from them.
 
 Surfers (name + colours) and spots (name, wave height range, how fast it peels, how often it closes out, water colours) are editable and saved in the browser (`localStorage`). "Reset to defaults" restores the built-in roster in `src/roster.ts`.
 
@@ -33,7 +33,7 @@ Surfers (name + colours) and spots (name, wave height range, how fast it peels, 
 
 - `src/wave.ts`: set scheduler, wave parameters, breaking fronts, height field
 - `src/sea.ts`: the sea mesh (vertex colours for face / deep water / foam)
-- `src/surfer.ts`: low-poly paddler rig and poses
+- `src/surfer.ts`: paddler rig (photo-based board deck, crouched riding pose, paddle)
 - `src/game.ts`: the four phases, takeoff rules, ride dynamics, camera
 - `src/hud.ts`, `src/settings.ts`: UI
 - `src/palette.ts`, `src/roster.ts`: colours and the surfer/spot roster

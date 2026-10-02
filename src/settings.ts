@@ -1,23 +1,11 @@
 import type { Game } from './game';
-import {
-  KEY_LABELS,
-  SURFER_KEYS,
-  WATER_KEYS,
-  autoWaterPalette,
-  samplePatch,
-  type PaletteKey,
-  type SurferPalette,
-  type WaterPalette,
-} from './palette';
+import { KEY_LABELS, SURFER_KEYS, WATER_KEYS, type PaletteKey, type SurferPalette, type WaterPalette } from './palette';
 import { resetRoster, saveRoster, type Roster } from './roster';
 
-/** Settings drawer: pick surfer and spot, rename them, and sample their colours from a photo. */
+/** Settings drawer: pick surfer and spot, rename them, tweak their colours. */
 export class SettingsPanel {
   private root: HTMLElement;
   private open = false;
-  private ctx: CanvasRenderingContext2D | null = null;
-  private target: PaletteKey = 'face';
-  private canvas: HTMLCanvasElement;
 
   private roster: Roster;
   private game: Game;
@@ -46,20 +34,16 @@ export class SettingsPanel {
         </div>
       </section>
       <section>
-        <h3>Colours from a photo</h3>
-        <p class="small">Load a photo, pick what you want to colour, then click on the photo.</p>
-        <input id="st-photo" type="file" accept="image/*" />
-        <div class="targets" id="st-targets"></div>
-        <canvas id="st-canvas" width="360" height="240"></canvas>
-        <div class="row"><button id="st-auto">Auto water from photo</button><span id="st-picked" class="small"></span></div>
+        <h3>Colours</h3>
+        <p class="small">Defaults come from the reference photo. Tweak a swatch to give a friend their own board.</p>
         <div class="swatches" id="st-swatches"></div>
       </section>
       <section class="row">
         <button id="st-save">Save</button>
         <button id="st-reset" class="danger">Reset to defaults</button>
+        <span id="st-msg" class="small"></span>
       </section>
     `;
-    this.canvas = this.q<HTMLCanvasElement>('#st-canvas');
     this.bind();
     this.render();
     window.addEventListener('keydown', (e) => {
@@ -127,39 +111,9 @@ export class SettingsPanel {
     num('#st-peel', 'peelSpeed');
     num('#st-section', 'sectionChance');
 
-    this.q<HTMLInputElement>('#st-photo').onchange = (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (!file) return;
-      const img = new Image();
-      img.onload = () => {
-        const scale = Math.min(360 / img.width, 240 / img.height);
-        this.canvas.width = Math.round(img.width * scale);
-        this.canvas.height = Math.round(img.height * scale);
-        const ctx = this.canvas.getContext('2d')!;
-        ctx.drawImage(img, 0, 0, this.canvas.width, this.canvas.height);
-        this.ctx = ctx;
-        URL.revokeObjectURL(img.src);
-      };
-      img.src = URL.createObjectURL(file);
-    };
-    this.canvas.onclick = (e) => {
-      if (!this.ctx) return;
-      const r = this.canvas.getBoundingClientRect();
-      const x = ((e.clientX - r.left) / r.width) * this.canvas.width;
-      const y = ((e.clientY - r.top) / r.height) * this.canvas.height;
-      const hex = samplePatch(this.ctx, x, y, 5);
-      this.setColour(this.target, hex);
-      this.q('#st-picked').textContent = `${KEY_LABELS[this.target]} = ${hex}`;
-    };
-    this.q('#st-auto').onclick = () => {
-      if (!this.ctx) return;
-      Object.assign(this.spot.water, autoWaterPalette(this.ctx));
-      this.apply();
-      this.renderSwatches();
-    };
     this.q('#st-save').onclick = () => {
       saveRoster(this.roster);
-      this.q('#st-picked').textContent = 'Saved in this browser.';
+      this.q('#st-msg').textContent = 'Saved in this browser.';
     };
     this.q('#st-reset').onclick = () => {
       const fresh = resetRoster();
@@ -192,18 +146,6 @@ export class SettingsPanel {
     this.q<HTMLInputElement>('#st-maxh').value = String(this.spot.maxHeight);
     this.q<HTMLInputElement>('#st-peel').value = String(this.spot.peelSpeed);
     this.q<HTMLInputElement>('#st-section').value = String(this.spot.sectionChance);
-    const targets = this.q('#st-targets');
-    targets.innerHTML = '';
-    for (const key of [...WATER_KEYS, ...SURFER_KEYS]) {
-      const b = document.createElement('button');
-      b.textContent = KEY_LABELS[key];
-      b.classList.toggle('on', key === this.target);
-      b.onclick = () => {
-        this.target = key;
-        this.render();
-      };
-      targets.appendChild(b);
-    }
     this.renderSwatches();
   }
 

@@ -59,7 +59,7 @@ export class Hud {
         <ul>
           <li><b>Arrows</b>: paddle (waiting) · left/right steer, up/down step forward/back on the board (riding)</li>
           <li><b>Space</b>: power stroke while paddling (tires you out)</li>
-          <li><b>H</b>: toggle peak/pocket hints · <b>Esc</b>: settings (surfers, spots, photo colours)</li>
+          <li><b>H</b>: toggle peak/pocket hints · <b>Esc</b>: settings (surfers, spots, colours)</li>
         </ul>
         <p class="go">Press any key to paddle out</p>
       </div>
