@@ -92,8 +92,9 @@ html, body, #app { margin: 0; height: 100%; overflow: hidden; background: #000; 
 .swatch input { width: 28px; height: 22px; padding: 0; border: none; background: none; }
 
 /* ---- touch controls & small screens ---- */
-body { touch-action: none; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
+body { -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
 #app { height: 100dvh; }
+#gl, .touch { touch-action: none; }
 .touch { position: absolute; inset: 0; pointer-events: none; }
 .tbtn {
   pointer-events: auto; position: absolute; border: 1px solid rgba(255,255,255,0.35); border-radius: 14px;
@@ -184,7 +185,6 @@ body.touch-device .keyboard-only { display: none; }
   position: relative; width: 96px; min-width: 0; flex: 0 0 auto; padding: 0; margin: 0; border: 2px solid rgba(255,255,255,0.22); border-radius: 12px; overflow: hidden;
   background: rgba(255,255,255,0.08); color: inherit; font: inherit; cursor: pointer; text-align: center;
 }
-.tile:hover { border-color: rgba(255,255,255,0.6); }
 .tile.on { border-color: #f2c84b; box-shadow: 0 0 0 2px rgba(242,200,75,0.45), 0 4px 16px rgba(0,0,0,0.5); }
 .tile img, .tile canvas, .tile .face-blank { display: block; width: 100%; height: 96px; object-fit: cover; }
 .tile .face-blank { display: flex; align-items: center; justify-content: center; font-size: 40px; font-weight: 700; background: rgba(255,255,255,0.1); }
@@ -201,7 +201,6 @@ body.touch-device .keyboard-only { display: none; }
   text-align: left; cursor: pointer; font: inherit; color: inherit; padding: 6px 10px;
   background: rgba(255,255,255,0.08); border: 2px solid rgba(255,255,255,0.18); border-radius: 10px;
 }
-.conds .cond:hover { background: rgba(255,255,255,0.16); }
 .conds .cond.on { border-color: #f2c84b; background: rgba(242,200,75,0.18); }
 .conds .cond b { display: block; font-size: 13px; }
 .conds .cond span { display: block; font-size: 11px; opacity: 0.8; }
@@ -214,19 +213,17 @@ button.primary {
   padding: 12px 22px; font: inherit; font-size: 17px; font-weight: 700; color: #111; background: #f2c84b;
   border: none; border-radius: 10px; cursor: pointer; box-shadow: 0 4px 16px rgba(0,0,0,0.45);
 }
-button.primary:hover { background: #ffd862; }
 .start-screen .mini {
   padding: 7px 12px; font: inherit; font-size: 13px; color: #fff; background: rgba(255,255,255,0.1);
   border: 1px solid rgba(255,255,255,0.25); border-radius: 8px; cursor: pointer;
 }
-.start-screen .mini:hover { background: rgba(255,255,255,0.18); }
 .ss-help { margin: 0; flex: 1 1 260px; opacity: 0.85; font-size: 12px; text-shadow: 0 1px 4px rgba(0,0,0,0.8); }
 .ss-help .keyboard-only { display: block; margin-top: 2px; }
 .ss-middle .seed-row .label { margin: 0; }
 body.starting .top-left, body.starting .controls, body.starting .tmenu, body.starting .tbtn.power, body.starting .stick { display: none !important; }
 
-@media (max-width: 720px) {
-  .ss-step { grid-template-columns: 1fr; grid-template-rows: auto 1fr auto auto; }
+@media (max-width: 720px), (max-height: 500px) {
+  .ss-step { grid-template-columns: 1fr; grid-template-rows: auto 1fr auto auto; overflow-y: auto; }
   .ss-top { flex-direction: column; gap: 6px; padding: max(10px, env(safe-area-inset-top)) 10px 4px; }
   .ss-top h1 { font-size: 24px; }
   .ss-top.ss-head { flex-direction: row; align-items: center; }
@@ -250,4 +247,24 @@ body.starting .top-left, body.starting .controls, body.starting .tmenu, body.sta
   .ss-name input { width: 160px; font-size: 15px; }
   button.primary { padding: 10px 16px; font-size: 15px; }
   .ss-help { display: none; }
+}
+@media (max-height: 500px) and (orientation: landscape) {
+  .ss-top { flex-direction: row; align-items: flex-start; gap: 12px; }
+  .ss-top h1 { font-size: 20px; margin-top: 6px; }
+  .ss-top .ss-group { margin-left: auto; }
+  .ss-side { justify-content: flex-end; }
+  .ss-side .ss-group { flex: 0 0 auto; }
+  .tile, .tile img, .tile canvas, .tile .face-blank { width: 54px; }
+  .tile img, .tile canvas, .tile .face-blank { height: 54px; }
+  .ss-bottom { padding-top: 4px; }
+  .ss-name { flex-direction: row; align-items: center; gap: 8px; }
+  .ss-name input { width: 140px; }
+  .tiles.spots { grid-template-columns: repeat(5, 1fr); }
+  .tiles.spots .tile img, .tiles.spots .tile .spot-blank { height: 60px; }
+}
+@media (hover: hover) {
+  .tile:hover { border-color: rgba(255,255,255,0.6); }
+  .conds .cond:hover { background: rgba(255,255,255,0.16); }
+  button.primary:hover { background: #ffd862; }
+  .start-screen .mini:hover { background: rgba(255,255,255,0.18); }
 }
