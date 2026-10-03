@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { Input } from './input';
 import { Sea } from './sea';
+import { SkyDome } from './sky';
+import { Wake } from './wake';
 import { Lips } from './lip';
 import { SurferRig, type Stance } from './surfer';
 import {
@@ -57,6 +59,9 @@ export class Game {
   private surfPt: SeaPoint = { y: 0, z: 0 };
   readonly rig: SurferRig;
   private hemi: THREE.HemisphereLight;
+  private sun: THREE.DirectionalLight;
+  private skyDome: SkyDome;
+  private wake = new Wake();
   private hintGroup = new THREE.Group();
   private peakMarker: THREE.Mesh;
   private pocketMarkers: THREE.Mesh[];
@@ -95,18 +100,19 @@ export class Game {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.25;
+    this.renderer.toneMappingExposure = 1.05;
     this.camera = new THREE.PerspectiveCamera(55, 1, 0.1, 400);
     this.camera.position.copy(this.camPos);
 
-    this.hemi = new THREE.HemisphereLight(0xffffff, 0x334455, 0.9);
+    this.hemi = new THREE.HemisphereLight(0xffffff, 0x334455, 1.0);
     this.scene.add(this.hemi);
-    const sun = new THREE.DirectionalLight(0xfff2dd, 2.2);
-    sun.position.set(-60, 80, -20);
-    this.scene.add(sun);
+    this.sun = new THREE.DirectionalLight(0xfff2dd, 1.7);
+    this.scene.add(this.sun);
+    this.skyDome = new SkyDome(this.renderer);
+    this.scene.add(this.wake.group);
 
     this.sea = new Sea(spot.water);
-    this.scene.add(this.sea.mesh, this.sea.beach);
+    this.scene.add(this.sea.mesh, this.sea.beach, this.sea.far);
     this.lips = new Lips(spot.water);
     this.scene.add(this.lips.group);
     this.scheduler = new WaveScheduler(spot);
@@ -146,9 +152,9 @@ export class Game {
     this.scheduler.spot = spot;
     this.sea.setPalette(spot.water);
     this.lips.setPalette(spot.water);
+    this.wake.setPalette(spot.water);
+    this.skyDome.apply(spot.water, this.scene, this.sun);
     const sky = new THREE.Color(spot.water.sky);
-    this.scene.background = sky;
-    this.scene.fog = new THREE.Fog(sky, 70, 190);
     this.hemi.color.set(sky).lerp(new THREE.Color(0xffffff), 0.5);
     this.hemi.groundColor.set(spot.water.deep).multiplyScalar(0.7);
   }
@@ -168,6 +174,7 @@ export class Game {
     this.fatigue = 0;
     this.x = 0;
     this.z = LINEUP_Z;
+    this.wake.clear();
     this.vx = 0;
     this.vz = 0;
     this.heading = Math.PI;
@@ -201,7 +208,10 @@ export class Game {
         break;
     }
 
-    this.sea.update(this.scheduler.waves, this.t, this.spot);
+    const speed = this.phase === 'start' ? 0 : Math.hypot(this.vx, this.vz);
+    this.wake.update(this.t, this.x, this.z, this.heading, speed, this.scheduler.waves, this.spot);
+    this.sea.update(this.scheduler.waves, this.t, this.spot, this.wake.points);
+    this.skyDome.update(this.t);
     this.lips.update(this.scheduler.waves, this.t, this.spot, dt);
     this.placeRig();
     this.updateHints();
@@ -396,6 +406,7 @@ export class Game {
     this.rig.resetWipeout();
     this.x = THREE.MathUtils.clamp(this.x, -45, 45);
     this.z = LINEUP_Z;
+    this.wake.clear();
     this.vx = 0;
     this.vz = 0;
     this.heading = Math.PI;
@@ -468,7 +479,7 @@ export class Game {
       tl.set(this.x, 0.5, this.z);
     } else {
       tp.set(this.x, 6.5, this.z + 15);
-      tl.set(this.x, 0.5, this.z - 26);
+      tl.set(this.x, 2.5, this.z - 26);
     }
     const k = 1 - Math.exp(-3 * dt);
     this.camPos.lerp(tp, k);

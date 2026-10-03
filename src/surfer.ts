@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { SurferPalette } from './palette';
 
 export type Stance = -1 | 0 | 1;
@@ -7,7 +8,9 @@ export type Stance = -1 | 0 | 1;
 const BOARD_NOSE = 1.5;
 const BOARD_TAIL = -1.3;
 const BOARD_HALF_W = 0.39;
-const BOARD_THICK = 0.12;
+const RAIL = 0.05;
+const BOARD_CORE = 0.03;
+const BOARD_THICK = BOARD_CORE + 2 * RAIL;
 
 // Body segment lengths (metres) for a ~1.78 m paddler.
 const THIGH = 0.44;
@@ -16,6 +19,7 @@ const TORSO = 0.55;
 const UPPER_ARM = 0.3;
 const FOREARM = 0.28;
 const SHAFT = 1.95;
+const BLADE_LEN = 0.46;
 
 const UP = new THREE.Vector3(0, 1, 0);
 
@@ -83,6 +87,15 @@ function paintDeck(ctx: CanvasRenderingContext2D, p: SurferPalette): void {
   ctx.beginPath();
   ctx.roundRect(W * 0.14, H * 0.36, W * 0.72, H * 0.4, W * 0.1);
   ctx.fill();
+  ctx.strokeStyle = 'rgba(120,120,112,0.5)';
+  ctx.lineWidth = W * 0.012;
+  for (let i = 1; i < 8; i++) {
+    const y = H * (0.36 + (0.4 * i) / 8);
+    ctx.beginPath();
+    ctx.moveTo(W * 0.16, y);
+    ctx.lineTo(W * 0.84, y);
+    ctx.stroke();
+  }
 
   const tail = ctx.createLinearGradient(0, H * 0.7, 0, H);
   tail.addColorStop(0, 'rgba(0,0,0,0)');
@@ -99,27 +112,98 @@ function paintDeck(ctx: CanvasRenderingContext2D, p: SurferPalette): void {
   ctx.fill();
 }
 
+/** Round-nosed, round-tailed outline; the bevel adds the rail back to full width. */
+function boardOutline(): THREE.Shape {
+  const w = BOARD_HALF_W - RAIL;
+  const s = new THREE.Shape();
+  s.moveTo(0, BOARD_TAIL);
+  s.bezierCurveTo(w * 0.6, BOARD_TAIL, w * 1.02, BOARD_TAIL + 0.45, w, BOARD_TAIL + 1.0);
+  s.bezierCurveTo(w * 1.03, BOARD_NOSE - 1.3, w * 0.62, BOARD_NOSE - 0.02, 0, BOARD_NOSE);
+  s.bezierCurveTo(-w * 0.62, BOARD_NOSE - 0.02, -w * 1.03, BOARD_NOSE - 1.3, -w, BOARD_TAIL + 1.0);
+  s.bezierCurveTo(-w * 1.02, BOARD_TAIL + 0.45, -w * 0.6, BOARD_TAIL, 0, BOARD_TAIL);
+  return s;
+}
+
+function boardGeometry(): THREE.BufferGeometry {
+  let geo: THREE.BufferGeometry = new THREE.ExtrudeGeometry(boardOutline(), {
+    depth: BOARD_CORE,
+    bevelEnabled: true,
+    bevelSize: RAIL,
+    bevelThickness: RAIL,
+    bevelSegments: 6,
+    curveSegments: 28,
+  });
+  geo.rotateX(Math.PI / 2);
+  geo.translate(0, BOARD_CORE + RAIL, 0);
+  geo = mergeVertices(geo, 1e-4);
+  // Rocker: the nose and tail kick up a little.
+  const pos = geo.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const z = pos.getZ(i);
+    const nose = Math.max(0, (z - 0.4) / (BOARD_NOSE - 0.4));
+    const tail = Math.max(0, (-z - 0.7) / (-BOARD_TAIL - 0.7));
+    pos.setY(i, pos.getY(i) + 0.1 * nose * nose + 0.035 * tail * tail);
+  }
+  geo.computeVertexNormals();
+  return geo;
+}
+
+/** Swept-back single fin, built in (along-board, height) and turned to sit under the tail. */
+function finGeometry(): THREE.BufferGeometry {
+  const s = new THREE.Shape();
+  s.moveTo(-0.24, 0);
+  s.lineTo(0.0, 0);
+  s.bezierCurveTo(0.04, -0.1, 0.1, -0.18, 0.11, -0.25);
+  s.bezierCurveTo(0.02, -0.21, -0.14, -0.12, -0.24, 0);
+  const geo = new THREE.ExtrudeGeometry(s, { depth: 0.012, bevelEnabled: true, bevelSize: 0.004, bevelThickness: 0.004, bevelSegments: 2, curveSegments: 12 });
+  geo.rotateY(Math.PI / 2);
+  geo.translate(-0.01, 0.01, BOARD_TAIL + 0.32);
+  return geo;
+}
+
+/** Teardrop paddle blade in the paddle's local xy plane, +y running down the shaft. */
+function bladeGeometry(): THREE.BufferGeometry {
+  const s = new THREE.Shape();
+  s.moveTo(-0.025, 0);
+  s.bezierCurveTo(-0.115, 0.1, -0.12, 0.3, -0.035, BLADE_LEN - 0.02);
+  s.quadraticCurveTo(0, BLADE_LEN + 0.01, 0.035, BLADE_LEN - 0.02);
+  s.bezierCurveTo(0.12, 0.3, 0.115, 0.1, 0.025, 0);
+  const geo = new THREE.ExtrudeGeometry(s, { depth: 0.008, bevelEnabled: true, bevelSize: 0.005, bevelThickness: 0.005, bevelSegments: 2, curveSegments: 14 });
+  geo.translate(0, 0, -0.009);
+  return geo;
+}
+
 /** The paddler from the photo: black full wetsuit, red SUP with orange nose and yellow tail, dark paddle. */
 export class SurferRig {
   readonly group = new THREE.Group();
   private body = new THREE.Group();
-  private board: THREE.Mesh;
+  private board = new THREE.Group();
   private deckCanvas = document.createElement('canvas');
   private deckTex: THREE.CanvasTexture;
-  private mats: { wetsuit: THREE.MeshStandardMaterial; skin: THREE.MeshStandardMaterial; hair: THREE.MeshStandardMaterial; board: THREE.MeshStandardMaterial; paddle: THREE.MeshStandardMaterial; blade: THREE.MeshStandardMaterial };
+  private mats: {
+    wetsuit: THREE.MeshStandardMaterial;
+    skin: THREE.MeshStandardMaterial;
+    hair: THREE.MeshStandardMaterial;
+    board: THREE.MeshPhysicalMaterial;
+    fin: THREE.MeshStandardMaterial;
+    paddle: THREE.MeshStandardMaterial;
+    blade: THREE.MeshStandardMaterial;
+  };
 
   private pelvis: THREE.Mesh;
   private torso: THREE.Mesh;
-  private head: THREE.Mesh;
-  private hair: THREE.Mesh;
+  private neck: THREE.Mesh;
+  private head = new THREE.Group();
+  private shoulderJoints: [THREE.Mesh, THREE.Mesh];
+  private elbowJoints: [THREE.Mesh, THREE.Mesh];
+  private kneeJoints: [THREE.Mesh, THREE.Mesh];
   private thighs: [THREE.Mesh, THREE.Mesh];
   private shins: [THREE.Mesh, THREE.Mesh];
   private feet: [THREE.Mesh, THREE.Mesh];
   private upperArms: [THREE.Mesh, THREE.Mesh];
   private forearms: [THREE.Mesh, THREE.Mesh];
   private hands: [THREE.Mesh, THREE.Mesh];
-  private shaft: THREE.Mesh;
-  private blade: THREE.Mesh;
+  private paddle = new THREE.Group();
 
   // Smoothed pose state.
   private yaw = 0;
@@ -142,62 +226,84 @@ export class SurferRig {
     this.deckTex.repeat.set(1 / (2 * BOARD_HALF_W + 0.06), 1 / (BOARD_NOSE - BOARD_TAIL));
     this.deckTex.offset.set((BOARD_HALF_W + 0.03) / (2 * BOARD_HALF_W + 0.06), -BOARD_TAIL / (BOARD_NOSE - BOARD_TAIL));
     this.mats = {
-      wetsuit: m(palette.wetsuit, 0.8),
-      skin: m(palette.skin, 0.85),
-      hair: m(palette.hair, 0.9),
-      board: new THREE.MeshStandardMaterial({ map: this.deckTex, roughness: 0.3 }),
-      paddle: m(palette.paddle, 0.5),
-      blade: m(palette.blade, 0.4),
+      wetsuit: m(palette.wetsuit, 0.72),
+      skin: m(palette.skin, 0.8),
+      hair: m(palette.hair, 0.85),
+      board: new THREE.MeshPhysicalMaterial({ map: this.deckTex, roughness: 0.42, clearcoat: 0.7, clearcoatRoughness: 0.18 }),
+      fin: m('#1d2328', 0.45),
+      paddle: m(palette.paddle, 0.45),
+      blade: m(palette.blade, 0.35),
     };
 
-    const shape = new THREE.Shape();
-    shape.moveTo(0, BOARD_NOSE);
-    shape.bezierCurveTo(BOARD_HALF_W * 1.05, BOARD_NOSE - 0.6, BOARD_HALF_W * 1.1, BOARD_TAIL + 0.7, BOARD_HALF_W * 0.55, BOARD_TAIL);
-    shape.lineTo(-BOARD_HALF_W * 0.55, BOARD_TAIL);
-    shape.bezierCurveTo(-BOARD_HALF_W * 1.1, BOARD_TAIL + 0.7, -BOARD_HALF_W * 1.05, BOARD_NOSE - 0.6, 0, BOARD_NOSE);
-    const boardGeo = new THREE.ExtrudeGeometry(shape, {
-      depth: BOARD_THICK,
-      bevelEnabled: true,
-      bevelSize: 0.03,
-      bevelThickness: 0.03,
-      bevelSegments: 2,
-      curveSegments: 16,
-    });
-    boardGeo.rotateX(Math.PI / 2);
-    boardGeo.translate(0, BOARD_THICK + 0.02, 0);
-    this.board = new THREE.Mesh(boardGeo, this.mats.board);
+    this.board.add(new THREE.Mesh(boardGeometry(), this.mats.board), new THREE.Mesh(finGeometry(), this.mats.fin));
 
-    const cyl = (r: number, mat: THREE.Material) => new THREE.Mesh(new THREE.CylinderGeometry(r, r * 0.85, 1, 10), mat);
+    const cyl = (r: number, mat: THREE.Material) => new THREE.Mesh(new THREE.CylinderGeometry(r, r * 0.85, 1, 12), mat);
+    const ball = (r: number, mat: THREE.Material) => new THREE.Mesh(new THREE.SphereGeometry(r, 12, 10), mat);
     this.thighs = [cyl(0.085, this.mats.wetsuit), cyl(0.085, this.mats.wetsuit)];
     this.shins = [cyl(0.065, this.mats.wetsuit), cyl(0.065, this.mats.wetsuit)];
     this.upperArms = [cyl(0.055, this.mats.wetsuit), cyl(0.055, this.mats.wetsuit)];
     this.forearms = [cyl(0.045, this.mats.wetsuit), cyl(0.045, this.mats.wetsuit)];
-    const foot = () => new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.06, 0.26), this.mats.wetsuit);
-    this.feet = [foot(), foot()];
-    const hand = () => new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 6), this.mats.skin);
+    this.shoulderJoints = [ball(0.072, this.mats.wetsuit), ball(0.072, this.mats.wetsuit)];
+    this.elbowJoints = [ball(0.05, this.mats.wetsuit), ball(0.05, this.mats.wetsuit)];
+    this.kneeJoints = [ball(0.072, this.mats.wetsuit), ball(0.072, this.mats.wetsuit)];
+    const footGeo = new THREE.CapsuleGeometry(0.05, 0.16, 4, 10);
+    footGeo.rotateX(Math.PI / 2);
+    footGeo.scale(1, 0.55, 1);
+    this.feet = [new THREE.Mesh(footGeo, this.mats.wetsuit), new THREE.Mesh(footGeo, this.mats.wetsuit)];
+    const hand = () => {
+      const h = ball(0.046, this.mats.skin);
+      h.scale.set(1, 0.65, 1.3);
+      return h;
+    };
     this.hands = [hand(), hand()];
 
-    this.pelvis = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.2, 0.22), this.mats.wetsuit);
-    this.torso = new THREE.Mesh(new THREE.BoxGeometry(0.42, 1, 0.24), this.mats.wetsuit);
-    this.head = new THREE.Mesh(new THREE.SphereGeometry(0.11, 14, 10), this.mats.skin);
-    this.hair = new THREE.Mesh(new THREE.SphereGeometry(0.112, 14, 10), this.mats.hair);
+    this.pelvis = ball(1, this.mats.wetsuit);
+    this.pelvis.scale.set(0.19, 0.13, 0.12);
+    this.torso = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.145, 1, 16), this.mats.wetsuit);
+    this.torso.scale.set(1.1, TORSO, 0.62);
+    this.neck = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.05, 1, 10), this.mats.skin);
 
-    this.shaft = cyl(0.018, this.mats.paddle);
-    this.blade = new THREE.Mesh(new THREE.BoxGeometry(0.21, 1, 0.025), this.mats.blade);
+    const skull = ball(0.105, this.mats.skin);
+    skull.scale.set(0.92, 1.1, 1);
+    const hair = new THREE.Mesh(new THREE.SphereGeometry(0.11, 18, 14, 0, Math.PI * 2, 0, Math.PI * 0.58), this.mats.hair);
+    hair.scale.set(0.95, 1.1, 1.02);
+    hair.rotation.x = -0.45;
+    const nose = ball(0.02, this.mats.skin);
+    nose.position.set(0, -0.015, 0.1);
+    const earL = ball(0.022, this.mats.skin);
+    earL.position.set(-0.095, -0.01, 0);
+    const earR = ball(0.022, this.mats.skin);
+    earR.position.set(0.095, -0.01, 0);
+    const eyeL = ball(0.011, this.mats.hair);
+    eyeL.position.set(-0.035, 0.015, 0.093);
+    const eyeR = ball(0.011, this.mats.hair);
+    eyeR.position.set(0.035, 0.015, 0.093);
+    this.head.add(skull, hair, nose, earL, earR, eyeL, eyeR);
+
+    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, SHAFT, 10), this.mats.paddle);
+    shaft.position.y = SHAFT / 2;
+    const tgrip = new THREE.Mesh(new THREE.CylinderGeometry(0.019, 0.019, 0.13, 10), this.mats.paddle);
+    tgrip.rotation.z = Math.PI / 2;
+    const blade = new THREE.Mesh(bladeGeometry(), this.mats.blade);
+    blade.position.y = SHAFT - 0.02;
+    blade.rotation.x = 0.17;
+    this.paddle.add(shaft, tgrip, blade);
 
     this.body.add(
       this.pelvis,
       this.torso,
+      this.neck,
       this.head,
-      this.hair,
+      ...this.shoulderJoints,
+      ...this.elbowJoints,
+      ...this.kneeJoints,
       ...this.thighs,
       ...this.shins,
       ...this.feet,
       ...this.upperArms,
       ...this.forearms,
       ...this.hands,
-      this.shaft,
-      this.blade,
+      this.paddle,
     );
     this.body.position.y = BOARD_THICK + 0.05;
     this.group.add(this.board, this.body);
@@ -280,25 +386,26 @@ export class SurferRig {
       const knee = joint(hip, ankle, THIGH, SHIN, hint, _p.knee);
       span(this.thighs[i], hip, knee);
       span(this.shins[i], knee, ankle);
-      this.feet[i].position.set(foot.x, 0.03, foot.z);
+      this.kneeJoints[i].position.copy(knee);
+      this.feet[i].position.set(foot.x, 0.035, foot.z);
       this.feet[i].rotation.y = -this.yaw;
     }
 
-    // Torso, head.
+    // Torso, neck, head.
     const shoulders = _p.shoulders.set(0, this.hipY + TORSO * Math.cos(this.lean), hips.z + TORSO * Math.sin(this.lean));
     span(this.torso, hips, shoulders);
     this.torso.scale.y = TORSO;
     const neckDir = _p.tmp.subVectors(shoulders, hips).normalize();
-    this.head.position.copy(shoulders).addScaledVector(neckDir, 0.2).add(_p.tmp2.set(0, 0.03, 0.03));
-    this.hair.position.copy(this.head.position).add(_p.tmp2.set(0, 0.035, -0.035));
+    this.head.position.copy(shoulders).addScaledVector(neckDir, 0.21).add(_p.tmp2.set(0, 0.04, 0.03));
+    this.head.rotation.x = -0.12 - 0.25 * crouch;
+    span(this.neck, _p.tmp2.copy(shoulders).addScaledVector(neckDir, -0.03), this.head.position);
 
-    // Paddle.
+    // Paddle: its local +y runs from the T-grip down the shaft to the blade.
     const grip = this.grip;
     const tip = this.bladeTip;
     const dir = _p.tmp.subVectors(tip, grip).normalize();
-    const bladeTop = _p.bladeTop.copy(grip).addScaledVector(dir, SHAFT);
-    span(this.shaft, grip, bladeTop);
-    span(this.blade, bladeTop, _p.tmp2.copy(bladeTop).addScaledVector(dir, 0.45));
+    this.paddle.position.copy(grip);
+    this.paddle.quaternion.setFromUnitVectors(UP, dir);
     const lowHand = _p.lowHand.copy(grip).addScaledVector(dir, 0.72);
 
     // Arms: the hand on the paddle side holds the shaft, the other one the grip.
@@ -311,7 +418,10 @@ export class SurferRig {
       const elbow = joint(shoulder, hand, UPPER_ARM, FOREARM, hint, _p.elbow);
       span(this.upperArms[i], shoulder, elbow);
       span(this.forearms[i], elbow, hand);
+      this.shoulderJoints[i].position.copy(shoulder);
+      this.elbowJoints[i].position.copy(elbow);
       this.hands[i].position.copy(hand);
+      this.hands[i].quaternion.copy(this.paddle.quaternion);
     }
   }
 
@@ -340,7 +450,6 @@ const _p = {
   elbow: new THREE.Vector3(),
   hand: new THREE.Vector3(),
   lowHand: new THREE.Vector3(),
-  bladeTop: new THREE.Vector3(),
   tmp: new THREE.Vector3(),
   tmp2: new THREE.Vector3(),
 };
