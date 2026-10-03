@@ -55,7 +55,7 @@ export class SettingsPanel {
       </section>
       <section>
         <h3>${t('Gameplay')}</h3>
-        <label><input id="st-hints" type="checkbox" /> ${t('Show the subtle peak and pocket hints (red = peak, green = pockets; H toggles them)')}</label>
+        <label><input id="st-hints" type="checkbox" /> ${t('Show the peak hint (blue arrows above the peak point to the pockets; H toggles it)')}</label>
       </section>
       <section>
         <h3>${t('Graphics')}</h3>

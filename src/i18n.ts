@@ -183,8 +183,8 @@ const ES: Record<string, string> = {
   'Waves per set (min)': 'Olas por serie (mín)',
   'Waves per set (max)': 'Olas por serie (máx)',
   Gameplay: 'Juego',
-  'Show the subtle peak and pocket hints (red = peak, green = pockets; H toggles them)':
-    'Mostrar las pistas sutiles de pico y hombro (rojo = pico, verde = hombros; H las alterna)',
+  'Show the peak hint (blue arrows above the peak point to the pockets; H toggles it)':
+    'Mostrar la pista del pico (flechas azules sobre el pico apuntan a los hombros; H la alterna)',
   Graphics: 'Gráficos',
   Quality: 'Calidad',
   'High: full water detail, all the spray': 'Alta: todo el detalle del agua y el spray',

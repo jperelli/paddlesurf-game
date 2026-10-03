@@ -10,7 +10,6 @@ import {
   SMALL_WAVE_MAX,
   WaveScheduler,
   brokenAmount,
-  brokenHalfWidth,
   crestZAt,
   faceLength,
   brokenAge,
@@ -37,7 +36,7 @@ export type EndReason = 'peak' | 'closeout' | 'caught' | 'overback' | 'faded';
 export const POCKET_WIDTH = 6;
 const LINEUP_Z = -2;
 const WIPEOUTS: EndReason[] = ['peak', 'closeout', 'caught'];
-const HINTS_KEY = 'paddlesurf.hints';
+const HINTS_KEY = 'paddlesurf.hints.v2';
 /** Seconds after breaking by which whitewater has dissipated enough to roll under you harmlessly. */
 const FOAM_SOFT_AGE = 4;
 /** Whitewater (m) low enough to punch through by paddling straight out into it. */
@@ -76,8 +75,8 @@ export class Game {
   private skyDome: SkyDome;
   private wake = new Wake();
   private hintGroup = new THREE.Group();
-  private peakMarker: THREE.Mesh;
-  private pocketMarkers: THREE.Mesh[];
+  private peakMarker: THREE.Group;
+  private hintMat: THREE.MeshBasicMaterial;
 
   phase: Phase = 'start';
   /** Start screen framing: a close-up of the surfer on the first step, the lineup on the spot step. */
@@ -150,15 +149,33 @@ export class Game {
     this.rigKey = lookKey(surfer.look);
     this.scene.add(this.rig.group);
 
-    this.peakMarker = new THREE.Mesh(
-      new THREE.ConeGeometry(0.3, 0.7, 10),
-      new THREE.MeshBasicMaterial({ color: 0xe04040, transparent: true, opacity: 0.4, depthWrite: false }),
-    );
-    this.peakMarker.rotation.x = Math.PI;
-    const pocketGeo = new THREE.BoxGeometry(POCKET_WIDTH, 0.06, 0.6);
-    const pocketMat = new THREE.MeshBasicMaterial({ color: 0x40e070, transparent: true, opacity: 0.3, depthWrite: false });
-    this.pocketMarkers = [new THREE.Mesh(pocketGeo, pocketMat), new THREE.Mesh(pocketGeo, pocketMat)];
-    this.hintGroup.add(this.peakMarker, ...this.pocketMarkers);
+    // Peak hint: two flat blue arrows above the peak, pointing along the crest to either pocket.
+    const arrow = new THREE.Shape();
+    arrow.moveTo(0, 0.28);
+    arrow.lineTo(0.55, 0.28);
+    arrow.lineTo(0.55, 0.55);
+    arrow.lineTo(1.15, 0);
+    arrow.lineTo(0.55, -0.55);
+    arrow.lineTo(0.55, -0.28);
+    arrow.lineTo(0, -0.28);
+    arrow.closePath();
+    const arrowGeo = new THREE.ShapeGeometry(arrow);
+    this.hintMat = new THREE.MeshBasicMaterial({
+      color: 0x3aa0ff,
+      transparent: true,
+      opacity: 0.4,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    const right = new THREE.Mesh(arrowGeo, this.hintMat);
+    right.position.x = 0.35;
+    const left = new THREE.Mesh(arrowGeo, this.hintMat);
+    left.position.x = -0.35;
+    left.rotation.y = Math.PI;
+    this.peakMarker = new THREE.Group();
+    this.peakMarker.add(left, right);
+    this.peakMarker.scale.setScalar(1.6);
+    this.hintGroup.add(this.peakMarker);
     this.scene.add(this.hintGroup);
 
     this.applySpot(spot);
@@ -597,17 +614,12 @@ export class Game {
       this.hintGroup.visible = false;
       return;
     }
-    const half = brokenHalfWidth(w, this.t, this.spot);
-    const topY = localHeight(w, w.peakX, this.t) + 0.7;
+    const topY = localHeight(w, w.peakX, this.t) + 1.1;
     this.peakMarker.position.set(w.peakX, topY, crestZAt(w, w.peakX, this.t));
-    for (let i = 0; i < 2; i++) {
-      const side = i === 0 ? 1 : -1;
-      const px = w.peakX + side * (half + POCKET_WIDTH / 2);
-      const pz = crestZAt(w, px, this.t) + 0.5;
-      const p = seaPointAt(this.scheduler.waves, px, pz, this.t, this.spot, this.surfPt);
-      this.pocketMarkers[i].position.set(px, p.y + 0.15, p.z);
-      this.pocketMarkers[i].visible = w.peel === 0 || w.peel === side;
-    }
+    this.peakMarker.children[0].visible = w.peel !== 1;
+    this.peakMarker.children[1].visible = w.peel !== -1;
+    // Slow fade in and out so the hint reads as a hint, not as part of the wave.
+    this.hintMat.opacity = 0.12 + 0.38 * (0.5 + 0.5 * Math.sin(this.t * 2.4));
   }
 
   private updateCamera(dt: number): void {

@@ -26,7 +26,7 @@ Open the printed URL. The UI is in English or Spanish, following the browser lan
 
 On phones and tablets an on-screen joystick (drag the knob, diagonals work), POWER button and Hints/Settings buttons replace the keyboard; tap the screen to paddle back out.
 
-Subtle peak/pocket hints (small red cone = peak, faint green bars = the two pockets) are on by default; Settings > Gameplay or `H` hides them. The water is clear enough to see the sand bottom: about 2 m deep out the back, ramping up to the beach. `Esc` opens settings.
+The peak hint (two translucent blue arrows pulsing above the peak, pointing to the pockets; only one on a wave that peels one way) is on by default; Settings > Gameplay or `H` hides it. The water is clear enough to see the sand bottom: about 2 m deep out the back, ramping up to the beach. `Esc` opens settings.
 
 ## Look
 
