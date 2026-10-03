@@ -68,6 +68,7 @@ export class SettingsPanel {
       </section>
       <section class="row">
         <button id="st-save">Save</button>
+        <button id="st-start">Back to the start screen</button>
         <button id="st-reset" class="danger">Reset to defaults</button>
         <span id="st-msg" class="small"></span>
       </section>
@@ -191,6 +192,10 @@ export class SettingsPanel {
     this.q('#st-save').onclick = () => {
       saveRoster(this.roster);
       this.q('#st-msg').textContent = 'Saved in this browser.';
+    };
+    this.q('#st-start').onclick = () => {
+      this.game.toStart();
+      this.toggle(false);
     };
     this.q('#st-reset').onclick = () => {
       const fresh = resetRoster();

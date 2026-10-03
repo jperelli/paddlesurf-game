@@ -33,11 +33,6 @@ export class Hud {
   private rideEl: HTMLElement;
   private whoEl: HTMLElement;
   private endCard: HTMLElement;
-  private startCard: HTMLElement;
-  private spotsEl: HTMLElement;
-  private condsEl: HTMLElement;
-  private seedEl: HTMLInputElement;
-  private seedNote: HTMLElement;
   private msgTimer = 0;
   private endBoard: Leaderboard;
   private boardCard: HTMLElement;
@@ -71,25 +66,6 @@ export class Hud {
         <p class="small">Best runs: waves and points in one session without falling.</p>
         <div id="hud-board-list"></div>
       </div>
-      <div id="hud-start" class="card start">
-        <div class="row start-head"><h1>Paddle Surf</h1><button id="hud-board-open" class="mini">High scores</button></div>
-        <div class="label">Spot</div>
-        <div id="hud-spots" class="spots"></div>
-        <div class="label">Conditions</div>
-        <div id="hud-conds" class="spots conds"></div>
-        <div class="row seed-row"><span class="label">Session code</span>
-          <input id="hud-seed" maxlength="12" spellcheck="false" autocomplete="off">
-          <button id="hud-seed-new" class="mini">New</button>
-          <button id="hud-seed-copy" class="mini">Copy link</button>
-          <span id="hud-seed-note" class="label small"></span></div>
-        <p>Wait for the set, paddle into the <b>pocket</b> next to the peak (not on it), then ride away from the breaking lip.</p>
-        <ul>
-          <li><b>Arrows</b> (or the on-screen pad): paddle (waiting) · left/right steer, up/down step forward/back on the board (riding)</li>
-          <li><b>Space</b>: power stroke while paddling (tires you out)</li>
-          <li><b>H</b>: toggle peak/pocket hints · <b>Esc</b>: settings (surfers, spots, colours)</li>
-        </ul>
-        <p class="go">Press any key or tap to paddle out</p>
-      </div>
       <div class="panel bottom controls keyboard-only">←↑↓→ paddle / steer · Space power · ↑↓ stance while riding · H hints · Esc settings</div>
     `;
     const q = (id: string) => root.querySelector<HTMLElement>(id)!;
@@ -103,78 +79,22 @@ export class Hud {
     this.rideEl = q('#hud-ride');
     this.whoEl = q('#hud-who');
     this.endCard = q('#hud-end');
-    this.startCard = q('#hud-start');
-    this.spotsEl = q('#hud-spots');
-    this.condsEl = q('#hud-conds');
-    this.seedEl = root.querySelector<HTMLInputElement>('#hud-seed')!;
-    this.seedNote = q('#hud-seed-note');
     this.boardCard = q('#hud-board');
     this.board = new Leaderboard(q('#hud-board-list'));
     this.endBoard = new Leaderboard(document.createElement('div'));
-    for (const el of [this.seedEl, q('#hud-seed-new'), q('#hud-seed-copy')]) {
-      for (const ev of ['pointerdown', 'click', 'keydown', 'keyup', 'touchstart']) el.addEventListener(ev, (e) => e.stopPropagation());
-    }
-    for (const el of [q('#hud-board-open'), this.boardCard]) {
-      for (const ev of ['pointerdown', 'click', 'touchstart']) el.addEventListener(ev, (e) => e.stopPropagation());
-    }
-    q('#hud-board-open').addEventListener('click', () => this.openBoard());
+    for (const ev of ['pointerdown', 'click', 'touchstart']) this.boardCard.addEventListener(ev, (e) => e.stopPropagation());
     q('#hud-board-close').addEventListener('click', () => this.boardCard.classList.add('hidden'));
+  }
+
+  /** The start screen asks for the name up front, so the wave-over card never has to. */
+  setPlayerName(name: string): void {
+    this.playerName = name;
+    this.nameGiven = true;
   }
 
   openBoard(): void {
     this.boardCard.classList.remove('hidden');
     this.board.show('day', null);
-  }
-
-  /** Level picker on the start card. Clicks here must not count as "press any key". */
-  setSpots(spots: { name: string; desc: string }[], index: number, onPick: (i: number) => void): void {
-    this.spotsEl.innerHTML = '';
-    spots.forEach((s, i) => {
-      const b = document.createElement('button');
-      b.className = `spot${i === index ? ' on' : ''}`;
-      b.innerHTML = `<b></b><span></span>`;
-      b.querySelector('b')!.textContent = s.name;
-      b.querySelector('span')!.textContent = s.desc;
-      b.addEventListener('pointerdown', (e) => e.stopPropagation());
-      b.addEventListener('click', (e) => {
-        e.stopPropagation();
-        onPick(i);
-      });
-      this.spotsEl.appendChild(b);
-    });
-  }
-
-  setConditions(list: { id: string; name: string; desc: string }[], current: string, onPick: (id: string) => void): void {
-    this.condsEl.innerHTML = '';
-    for (const c of list) {
-      const b = document.createElement('button');
-      b.className = `spot${c.id === current ? ' on' : ''}`;
-      b.innerHTML = `<b></b><span></span>`;
-      b.querySelector('b')!.textContent = c.name;
-      b.querySelector('span')!.textContent = c.desc;
-      b.addEventListener('pointerdown', (e) => e.stopPropagation());
-      b.addEventListener('click', (e) => {
-        e.stopPropagation();
-        onPick(c.id);
-      });
-      this.condsEl.appendChild(b);
-    }
-  }
-
-  /** Session code field: typing or "New" changes the seed, "Copy link" shares the whole setup. */
-  setSeed(code: string): void {
-    if (this.seedEl.value !== code) this.seedEl.value = code;
-  }
-
-  bindSeed(onChange: (raw: string) => void, onNew: () => void, onCopy: () => void): void {
-    this.seedEl.addEventListener('input', () => onChange(this.seedEl.value));
-    this.seedEl.addEventListener('change', () => onChange(this.seedEl.value));
-    this.root.querySelector('#hud-seed-new')!.addEventListener('click', onNew);
-    this.root.querySelector('#hud-seed-copy')!.addEventListener('click', onCopy);
-  }
-
-  seedNoteText(s: string): void {
-    this.seedNote.textContent = s;
   }
 
   update(s: HudState, now: number): void {
@@ -195,7 +115,6 @@ export class Hud {
     this.scoreEl.textContent = String(s.score);
     this.caughtEl.textContent = String(s.caught);
     this.rideEl.textContent = s.phase === 'riding' ? `+${Math.round(s.ridePoints * 10)}` : '';
-    this.startCard.classList.toggle('hidden', s.phase !== 'start');
     if (this.msgTimer && now > this.msgTimer) {
       this.msgEl.classList.remove('show');
       this.msgTimer = 0;

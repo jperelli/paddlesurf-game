@@ -1,15 +1,16 @@
 import './style.css';
 import { Game } from './game';
 import { Hud } from './hud';
-import { describeSpot, loadRoster, saveRoster } from './roster';
+import { loadRoster, saveRoster } from './roster';
 import { PRESETS, type Preset } from './conditions';
 import { newSessionCode, normalizeCode } from './rng';
 import { loadQuality } from './quality';
 import { SettingsPanel } from './settings';
+import { StartScreen } from './start';
 import { TouchControls } from './touch';
 
 const app = document.querySelector<HTMLDivElement>('#app')!;
-app.innerHTML = `<canvas id="gl"></canvas><div id="hud"></div><div id="touch"></div><div id="settings"></div>`;
+app.innerHTML = `<canvas id="gl"></canvas><div id="hud"></div><div id="start"></div><div id="touch"></div><div id="settings"></div>`;
 
 const canvas = document.querySelector<HTMLCanvasElement>('#gl')!;
 const roster = loadRoster();
@@ -35,16 +36,23 @@ function syncUrl(): void {
   history.replaceState(null, '', u);
 }
 
+const settings = new SettingsPanel(document.querySelector<HTMLElement>('#settings')!, roster, game);
+const start = new StartScreen(document.querySelector<HTMLElement>('#start')!, roster, game, hud, () => {
+  saveRoster(roster);
+  settings.refresh();
+});
+new TouchControls(document.querySelector<HTMLElement>('#touch')!, canvas, hud.element, game.input, settings);
+
 function renderConditions(): void {
-  hud.setConditions(PRESETS, game.preset, (id) => {
+  start.setConditions(PRESETS, game.preset, (id) => {
     game.preset = id as Preset;
     syncUrl();
     renderConditions();
   });
 }
 renderConditions();
-hud.setSeed(game.seed);
-hud.bindSeed(
+start.setSeed(game.seed);
+start.bindSeed(
   (raw) => {
     const code = normalizeCode(raw);
     if (code) game.seed = code;
@@ -52,37 +60,27 @@ hud.bindSeed(
   },
   () => {
     game.seed = newSessionCode();
-    hud.setSeed(game.seed);
+    start.setSeed(game.seed);
     syncUrl();
   },
   () => {
     syncUrl();
     navigator.clipboard
       ?.writeText(location.href)
-      .then(() => hud.seedNoteText('Link copied: same spot, conditions and waves for your friends'))
-      .catch(() => hud.seedNoteText(location.href));
+      .then(() => start.seedNoteText('Link copied: same spot, conditions and waves for your friends'))
+      .catch(() => start.seedNoteText(location.href));
   },
 );
 syncUrl();
-const settings = new SettingsPanel(document.querySelector<HTMLElement>('#settings')!, roster, game);
-new TouchControls(document.querySelector<HTMLElement>('#touch')!, canvas, hud.element, game.input, settings);
-
-function renderSpots(): void {
-  hud.setSpots(
-    roster.spots.map((s) => ({ name: s.name, desc: describeSpot(s) })),
-    roster.spotIndex,
-    (i) => {
-      roster.spotIndex = i;
-      game.applySpot(roster.spots[i]);
-      saveRoster(roster);
-      syncUrl();
-      settings.refresh();
-      renderSpots();
-    },
-  );
-}
-renderSpots();
+start.bindSpot((i) => {
+  roster.spotIndex = i;
+  game.applySpot(roster.spots[i]);
+  saveRoster(roster);
+  syncUrl();
+  settings.refresh();
+});
 let shownSpot = game.spot;
+let shownSurfer = game.surfer;
 
 declare global {
   interface Window {
@@ -96,9 +94,14 @@ function frame(now: number): void {
   const dt = (now - last) / 1000;
   last = now;
   game.update(dt);
-  if (game.spot !== shownSpot) {
+  const starting = game.phase === 'start';
+  start.setVisible(starting);
+  document.body.classList.toggle('starting', starting);
+  if (game.spot !== shownSpot || game.surfer !== shownSurfer) {
+    // Settings switched the spot or surfer: keep the start screen tiles in step.
     shownSpot = game.spot;
-    renderSpots();
+    shownSurfer = game.surfer;
+    start.render();
   }
   hud.update(
     {
@@ -107,7 +110,7 @@ function frame(now: number): void {
       stance: game.stance,
       score: game.score,
       caught: game.caught,
-      setLabel: game.phase === 'start' ? '' : game.setLabel(),
+      setLabel: starting ? '' : game.setLabel(),
       surfer: game.surfer.name,
       spot: game.spot.name,
       ridePoints: game.ride?.points ?? 0,

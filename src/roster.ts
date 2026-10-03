@@ -1,6 +1,8 @@
 import {
+  CASTELLDEFELS_WATER,
   CHICAMA_WATER,
   DEFAULT_SURFER,
+  NAZARE_WATER,
   PRAIA_DO_ROSA_WATER,
   SAN_CLEMENTE_WATER,
   type SurferPalette,
@@ -17,6 +19,8 @@ export interface Surfer {
 
 export interface Spot extends SpotConfig {
   water: WaterPalette;
+  /** Photo for the start screen tile (under public/spots). */
+  photo?: string;
 }
 
 export interface Roster {
@@ -26,14 +30,15 @@ export interface Roster {
   spotIndex: number;
 }
 
-const KEY = 'paddlesurf.roster.v6';
+const KEY = 'paddlesurf.roster.v7';
 
 export function defaultRoster(): Roster {
   return {
     surfers: [
-      { name: 'Julian', palette: { ...DEFAULT_SURFER }, look: defaultLook(0) },
-      { name: 'Alfredo', palette: { ...DEFAULT_SURFER, board: '#2f7fb8', boardNose: '#f4f4f4', boardTail: '#f4f4f4' }, look: defaultLook(1) },
-      { name: 'Ferchu', palette: { ...DEFAULT_SURFER, board: '#f0f0ea', boardNose: '#2aa4b5', boardTail: '#2aa4b5' }, look: defaultLook(2) },
+      { name: 'Alfredo', palette: { ...DEFAULT_SURFER, board: '#2f7fb8', boardNose: '#f4f4f4', boardTail: '#f4f4f4' }, look: { ...defaultLook(1), facePhoto: 'faces/alfredo.jpg' } },
+      { name: 'Julian', palette: { ...DEFAULT_SURFER }, look: { ...defaultLook(0), facePhoto: 'faces/julian.jpg' } },
+      { name: 'Ferchu', palette: { ...DEFAULT_SURFER, board: '#f0f0ea', boardNose: '#2aa4b5', boardTail: '#2aa4b5' }, look: { ...defaultLook(2), facePhoto: 'faces/ferchu.jpg' } },
+      { name: 'el Tano', palette: { ...DEFAULT_SURFER, board: '#2e8b57', boardNose: '#f2c84b', boardTail: '#f2c84b', wetsuit: '#1d2a3a' }, look: { ...defaultLook(0), body: 2, facePhoto: 'faces/tano.jpg' } },
     ],
     spots: [
       {
@@ -51,6 +56,7 @@ export function defaultRoster(): Roster {
         setMin: 4,
         setMax: 5,
         water: { ...SAN_CLEMENTE_WATER },
+        photo: 'spots/sanclemente.jpg',
       },
       {
         name: 'Chicama, Peru',
@@ -67,6 +73,7 @@ export function defaultRoster(): Roster {
         setMin: 8,
         setMax: 10,
         water: { ...CHICAMA_WATER },
+        photo: 'spots/chicama.jpg',
       },
       {
         // Beach break, lefts and rights, 0.5–2.5 m, fast and powerful with sections and
@@ -85,9 +92,47 @@ export function defaultRoster(): Roster {
         setMin: 4,
         setMax: 7,
         water: { ...PRAIA_DO_ROSA_WATER },
+        photo: 'spots/rosa.jpg',
+      },
+      {
+        // Praia do Norte: the submarine canyon focuses the swell into huge A-frame peaks, mostly ridden
+        // as rights; fast, thick and heavy, with sets that stack up with little rest between them.
+        name: 'Nazaré, Portugal',
+        minHeight: 5,
+        maxHeight: 8,
+        peelSpeed: 5.5,
+        sectionChance: 0.3,
+        peakRange: 35,
+        waveSpeed: 9,
+        rightOnly: 0.5,
+        leftOnly: 0.15,
+        lullMin: 2,
+        lullMax: 4,
+        setMin: 3,
+        setMax: 5,
+        water: { ...NAZARE_WATER },
+        photo: 'spots/nazare.jpg',
+      },
+      {
+        // Mediterranean beach break: knee-to-waist-high windswell, slow and crumbly, closes out a lot.
+        name: 'Castelldefels, Spain',
+        minHeight: 0.55,
+        maxHeight: 0.8,
+        peelSpeed: 2.4,
+        sectionChance: 0.5,
+        peakRange: 18,
+        waveSpeed: 4.5,
+        rightOnly: 0.3,
+        leftOnly: 0.3,
+        lullMin: 4,
+        lullMax: 8,
+        setMin: 3,
+        setMax: 4,
+        water: { ...CASTELLDEFELS_WATER },
+        photo: 'spots/castelldefels.jpg',
       },
     ],
-    surferIndex: 0,
+    surferIndex: 1,
     spotIndex: 0,
   };
 }

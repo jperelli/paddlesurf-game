@@ -95,7 +95,7 @@ function paintPad(ctx: CanvasRenderingContext2D, W: number, H: number, y0: numbe
 }
 
 /** Deck designs: 0 the photo's board (orange nose, white stripes, yellow tail), 1 centre stripe, 2 colour blocks. */
-function paintDeck(ctx: CanvasRenderingContext2D, p: SurferPalette, design: number): void {
+export function paintDeck(ctx: CanvasRenderingContext2D, p: SurferPalette, design: number): void {
   const W = ctx.canvas.width;
   const H = ctx.canvas.height;
   ctx.fillStyle = p.board;
@@ -537,8 +537,9 @@ export class SurferRig {
    * @param lookYaw where the head looks, yaw relative to the board's nose (radians)
    * @param lookPitch head pitch, positive looks down
    * @param turn -1..1 turning input: shoulders wind into the turn, hips counter-rotate
+   * @param idle seconds of standing around (0 = none): slow weight shifts and a paddle that swings a little
    */
-  pose(stance: Stance, strokePhase: number, crouch: number, side: 1 | -1, lookYaw = 0, lookPitch = 0, turn = 0): void {
+  pose(stance: Stance, strokePhase: number, crouch: number, side: 1 | -1, lookYaw = 0, lookPitch = 0, turn = 0, idle = 0): void {
     const riding = strokePhase === 0 && crouch > 0;
     const k = 0.18;
     this.body.position.z = approach(this.body.position.z, stance * 0.45, k);
@@ -571,10 +572,14 @@ export class SurferRig {
         this.grip.set(-side * 0.08, 1.5 + 0.08 * c, 0.3 + 0.12 * c);
         this.bladeTip.set(side * 0.55, -0.4 + 0.22 * s, 0.25 + 0.75 * c);
       } else {
-        hipY = 0.9;
-        lean = 0.15;
-        this.grip.set(-side * 0.25, 1.05, 0.15);
-        this.bladeTip.set(side * 0.6, -0.15, 0.7);
+        const sway = idle > 0 ? Math.sin(0.9 * idle) : 0;
+        const bob = idle > 0 ? Math.sin(1.7 * idle + 0.8) : 0;
+        hipY = 0.9 - 0.02 * (1 - Math.cos(1.1 * idle)) * (idle > 0 ? 1 : 0);
+        lean = 0.15 + 0.03 * sway;
+        this.footL.set(-0.17 - 0.02 * sway, 0, 0.04);
+        this.footR.set(0.17 - 0.02 * sway, 0, -0.04);
+        this.grip.set(-side * 0.25 + 0.03 * sway, 1.05 + 0.02 * bob, 0.15 + 0.04 * sway);
+        this.bladeTip.set(side * 0.6 + 0.05 * bob, -0.15 + 0.03 * sway, 0.7 + 0.08 * sway);
       }
     }
     // Weight shift: a step forward leans the chest over the nose, a step back sits into the tail.

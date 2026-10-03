@@ -45,6 +45,24 @@ export const PRAIA_DO_ROSA_WATER: WaterPalette = {
   sand: '#d8ceb6',
 };
 
+/** Nazaré (Praia do Norte, Portugal): cold grey-blue Atlantic under a hazy sky, pale sand. */
+export const NAZARE_WATER: WaterPalette = {
+  sky: '#9fb0bf',
+  deep: '#28394a',
+  face: '#4b6878',
+  foam: '#e9edf0',
+  sand: '#c6b48e',
+};
+
+/** Castelldefels (Barcelona): Mediterranean teal shallows over golden sand. */
+export const CASTELLDEFELS_WATER: WaterPalette = {
+  sky: '#8fb9da',
+  deep: '#2d5c78',
+  face: '#4f8b96',
+  foam: '#f1f2ee',
+  sand: '#c7a874',
+};
+
 export const DEFAULT_WATER: WaterPalette = SAN_CLEMENTE_WATER;
 
 // The paddler (photo 1): black full wetsuit, red board with an orange nose and a yellow-green tail, dark paddle.

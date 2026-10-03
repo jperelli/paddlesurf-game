@@ -79,6 +79,10 @@ export class Game {
   private pocketMarkers: THREE.Mesh[];
 
   phase: Phase = 'start';
+  /** Start screen framing: a close-up of the surfer on the first step, the lineup on the spot step. */
+  startView: 'surfer' | 'spot' = 'surfer';
+  private idleT = 0;
+  private camSnap = true;
   t = 0;
   conditions: Conditions = rollConditions();
   preset: Preset = 'random';
@@ -238,19 +242,34 @@ export class Game {
     this.hud.flash(`Paddle into position and wait for the set. Today: ${describeConditions(this.conditions)} · session ${this.seed}.`, 6000);
   }
 
+  /** Back to the start screen (from settings); the next paddle-out starts a fresh run. */
+  toStart(): void {
+    this.phase = 'start';
+    this.startView = 'surfer';
+    this.ride = null;
+    this.end = null;
+    this.hud.hideEnd();
+    this.rig.resetWipeout();
+    this.x = 0;
+    this.z = LINEUP_Z;
+    this.vx = 0;
+    this.vz = 0;
+    this.heading = Math.PI;
+    this.stance = 0;
+    this.wake.clear();
+  }
+
   update(dt: number): void {
     dt = Math.min(dt, 0.05);
     const input = this.input;
     if (input.wasPressed('KeyH')) this.setHint(!this.hint);
 
-    if (this.phase !== 'start') {
-      this.t += dt;
-      this.scheduler.update(this.t);
-    }
+    this.t += dt;
+    this.scheduler.update(this.t);
 
     switch (this.phase) {
       case 'start':
-        if (input.anyPressed()) this.start();
+        this.idleT += dt;
         break;
       case 'waiting':
         this.updateWaiting(dt);
@@ -553,7 +572,13 @@ export class Game {
         lookPitch = 0.05;
       }
     }
-    this.rig.pose(this.stance, stroke, Math.min(1, crouch), riding && this.ride ? (-this.ride.dir as 1 | -1) : this.paddleSide, lookYaw, lookPitch, turn);
+    let idle = 0;
+    if (this.phase === 'start') {
+      idle = this.idleT;
+      lookYaw = this.startView === 'surfer' ? 0.18 * Math.sin(0.37 * idle) : 0.3 * Math.sin(0.23 * idle);
+      lookPitch = 0.04 * Math.sin(0.53 * idle);
+    }
+    this.rig.pose(this.stance, stroke, Math.min(1, crouch), riding && this.ride ? (-this.ride.dir as 1 | -1) : this.paddleSide, lookYaw, lookPitch, turn, idle);
   }
 
   setHint(on: boolean): void {
@@ -594,11 +619,18 @@ export class Game {
       const d = this.ride.dir;
       tp.set(this.x - d * 13, 6, this.z + 12);
       tl.set(this.x, 0.5, this.z);
+    } else if (this.phase === 'start' && this.startView === 'surfer') {
+      // Three-quarter view from the front, the surfer slightly left of centre so the pickers fit beside them.
+      const dist = 3.6 * Math.max(1, 1.15 / this.camera.aspect);
+      const g = this.rig.group.position;
+      tp.set(this.x + 0.55 * dist, g.y + 1.55, this.z - 0.9 * dist);
+      tl.set(this.x - 0.08 * dist, g.y + 0.95, this.z + 0.1);
     } else {
       tp.set(this.x, 6.5, this.z + 15);
       tl.set(this.x, 2.5, this.z - 26);
     }
-    const k = 1 - Math.exp(-3 * dt);
+    const k = this.camSnap ? 1 : 1 - Math.exp(-3 * dt);
+    this.camSnap = false;
     this.camPos.lerp(tp, k);
     this.camLook.lerp(tl, k);
     this.camera.position.copy(this.camPos);
