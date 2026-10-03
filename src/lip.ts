@@ -21,8 +21,8 @@ const NX = 28; // segments along the crest
 const NV = 10; // segments along the curl
 const STRIP_LEN = CURL_WIDTH + 6;
 const POOL = 4;
-const SPRAY_N = 700;
-const MIST_N = 1200;
+const SPRAY_N = 1600;
+const MIST_N = 2600;
 /** How many crest samples either side of the pocket shed wind spray. */
 const WIND_STRIP = 14;
 
@@ -60,9 +60,11 @@ function sprayTexture(): THREE.Texture {
   const c = document.createElement('canvas');
   c.width = c.height = 64;
   const ctx = c.getContext('2d')!;
+  // A droplet: solid core with a short falloff, not a soft blob.
   const g = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
-  g.addColorStop(0, 'rgba(255,255,255,0.9)');
-  g.addColorStop(0.5, 'rgba(255,255,255,0.35)');
+  g.addColorStop(0, 'rgba(255,255,255,1)');
+  g.addColorStop(0.42, 'rgba(255,255,255,0.95)');
+  g.addColorStop(0.62, 'rgba(255,255,255,0.25)');
   g.addColorStop(1, 'rgba(255,255,255,0)');
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, 64, 64);
@@ -145,9 +147,9 @@ export class Lips {
   private pt: SeaPoint = { y: 0, z: 0 };
 
   /** Coarse spray where the lip lands. */
-  private spray = new SprayPool(SPRAY_N, 1.4, 0.8);
+  private spray = new SprayPool(SPRAY_N, 0.42, 0.95);
   /** Fine spindrift torn off the crest by the wind. */
-  private mist = new SprayPool(MIST_N, 0.55, 0.5);
+  private mist = new SprayPool(MIST_N, 0.2, 0.8);
   private wind = { x: 0, z: 0 };
   private windAcc = 0;
 
@@ -225,7 +227,7 @@ export class Lips {
     // Wind spray off the crests that are standing up but not yet broken.
     const windSpeed = Math.hypot(this.wind.x, this.wind.z);
     if (windSpeed > 1) {
-      this.windAcc += dt * 170 * Math.min(1, windSpeed / 5);
+      this.windAcc += dt * 360 * Math.min(1, windSpeed / 5);
       for (const w of waves) {
         if (!w.isSet || this.windAcc < 1) continue;
         const half = brokenHalfWidth(w, t, spot);
@@ -244,7 +246,7 @@ export class Lips {
           }
         }
       }
-      this.windAcc = Math.min(this.windAcc, 6);
+      this.windAcc = Math.min(this.windAcc, 12);
     }
 
     // Heavy spray falls fast and barely feels the wind; the fine mist is carried by it.
@@ -267,7 +269,7 @@ export class Lips {
     const x0 = w.peakX + side * (half - 1.5);
     const tanA = Math.tan(w.angle);
     let maxT = 0;
-    const emitBudget = Math.min(6, Math.ceil(90 * dt));
+    const emitBudget = Math.min(14, Math.ceil(220 * dt));
     for (let i = 0; i <= NX; i++) {
       const s = i / NX;
       const x = x0 + side * s * STRIP_LEN;
