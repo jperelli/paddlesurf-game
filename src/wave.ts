@@ -1,6 +1,6 @@
 // Wave model: sets, peak/pockets, breaking fronts and the height field the sea mesh samples.
 
-import { rollHollow, tideShift, type Conditions } from './conditions';
+import { rollHollow, tideShift, type Conditions, type SecondSwell } from './conditions';
 
 /** Which way a wave peels: 0 = A-frame (both pockets), 1 = rights only (+x), -1 = lefts only (-x). */
 export type Peel = 0 | 1 | -1;
@@ -81,6 +81,36 @@ function smoothstep(a: number, b: number, x: number): number {
   return t * t * (3 - 2 * t);
 }
 
+let swell2: SecondSwell | null = null;
+
+export function setSecondSwell(s: SecondSwell | null): void {
+  swell2 = s;
+}
+
+/** Height of the crossing background swell at (x, z); dies out across the break zone. */
+export function secondSwellAt(x: number, z: number, t: number): number {
+  const s = swell2;
+  if (!s) return 0;
+  const k = (2 * Math.PI) / s.length;
+  const ph = k * (Math.sin(s.angle) * x + Math.cos(s.angle) * z) - (2 * Math.PI * t) / s.period;
+  const fade = 1 - smoothstep(BREAK_Z - 6, FADE_Z, z);
+  return s.amp * fade * (Math.cos(ph) + 0.25 * Math.cos(2 * ph) - 0.25);
+}
+
+/**
+ * Where the second swell lines up with a set wave as it reaches the break, the wave is bigger;
+ * where they cancel, smaller. Frozen at the moment the crest hits breakZ so each wave gets its
+ * own fixed pattern of peaks along the crest.
+ */
+export function peakBoost(w: Wave, x: number): number {
+  const s = swell2;
+  if (!s || !w.isSet) return 1;
+  const k = (2 * Math.PI) / s.length;
+  const tb = w.t0 + (w.breakZ - w.z0) / w.speed;
+  const ph = k * (Math.sin(s.angle) * x + Math.cos(s.angle) * w.breakZ) - (2 * Math.PI * tb) / s.period;
+  return 1 + (s.amp / 0.3) * 0.3 * Math.cos(ph);
+}
+
 export function crestZ(w: Wave, t: number): number {
   return w.z0 + w.speed * (t - w.t0);
 }
@@ -123,7 +153,7 @@ export function envelope(w: Wave, x: number): number {
 
 export function localHeight(w: Wave, x: number, t: number): number {
   const cz = crestZAt(w, x, t);
-  return w.height * envelope(w, x) * fadeAt(w, cz) * (1 - 0.4 * reformAmount(w, cz));
+  return w.height * peakBoost(w, x) * envelope(w, x) * fadeAt(w, cz) * (1 - 0.4 * reformAmount(w, cz));
 }
 
 export function faceLength(h: number): number {
@@ -220,7 +250,8 @@ export function chopAt(x: number, z: number, t: number): number {
   return (
     0.05 * Math.sin(0.9 * x + 1.3 * t) +
     0.04 * Math.sin(0.7 * z - 1.1 * t + 0.5 * x) +
-    0.03 * Math.sin(1.9 * x - 0.6 * z + 2.1 * t)
+    0.03 * Math.sin(1.9 * x - 0.6 * z + 2.1 * t) +
+    secondSwellAt(x, z, t)
   );
 }
 
@@ -276,10 +307,12 @@ export class WaveScheduler {
     this.spot = spot;
     this.conditions = conditions;
     this.setPeakX = rand(-spot.peakRange, spot.peakRange);
+    setSecondSwell(conditions.swell2);
   }
 
   reset(conditions: Conditions): void {
     this.conditions = conditions;
+    setSecondSwell(conditions.swell2);
     this.waves = [];
     this.mode = 'lull';
     this.remaining = 2;

@@ -88,9 +88,11 @@ class SprayPool {
     for (let i = 0; i < n; i++) this.pos[i * 3 + 1] = -50;
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(this.pos, 3));
+    // Droplets stay a few pixels on screen whatever their distance: close ones never balloon into blobs.
     const mat = new THREE.PointsMaterial({
       map: sprayTexture(),
       size,
+      sizeAttenuation: false,
       transparent: true,
       depthWrite: false,
       opacity,
@@ -145,9 +147,9 @@ export class Lips {
   private pt: SeaPoint = { y: 0, z: 0 };
 
   /** Coarse spray where the lip lands. */
-  private spray = new SprayPool(SPRAY_N, 0.42, 0.95);
+  private spray = new SprayPool(SPRAY_N, 3.4, 0.95);
   /** Fine spindrift torn off the crest by the wind. */
-  private mist = new SprayPool(MIST_N, 0.2, 0.8);
+  private mist = new SprayPool(MIST_N, 2.2, 0.8);
   private wind = { x: 0, z: 0 };
   private windAcc = 0;
 

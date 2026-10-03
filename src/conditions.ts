@@ -1,5 +1,14 @@
 // Session conditions: swell angle, longshore current and wind. Rolled when a session starts.
 
+/** A background swell train crossing the main one: long crests, its own angle and period. */
+export interface SecondSwell {
+  amp: number;
+  /** Travel direction relative to straight-in (radians); positive heads towards +x. */
+  angle: number;
+  length: number;
+  period: number;
+}
+
 export interface Conditions {
   /** Crest rotation (radians). Positive: the crest line sits further out to sea on the right. */
   angle: number;
@@ -10,6 +19,7 @@ export interface Conditions {
   windZ: number;
   /** Where in the tidal cycle the session starts (radians). */
   tidePhase: number;
+  swell2: SecondSwell | null;
 }
 
 /** Tide period (s): short enough that the tide visibly moves during one session. */
@@ -61,7 +71,16 @@ export function rollConditions(): Conditions {
   else if (w < 0.8) windZ = rand(-0.8, 0.8);
   else windZ = rand(1.5, 4.5);
   const windX = rand(-2.5, 2.5);
-  return { angle, current, windX, windZ, tidePhase: rand(0, 2 * Math.PI) };
+  const swell2: SecondSwell | null =
+    Math.random() < 0.55
+      ? {
+          amp: rand(0.15, 0.3),
+          angle: (Math.random() < 0.5 ? -1 : 1) * rand(0.35, 0.7),
+          length: rand(22, 34),
+          period: rand(7, 11),
+        }
+      : null;
+  return { angle, current, windX, windZ, tidePhase: rand(0, 2 * Math.PI), swell2 };
 }
 
 export function windSpeed(c: Conditions): number {
@@ -78,6 +97,7 @@ export function describeConditions(c: Conditions): string {
   }
   if (Math.abs(c.angle) > 0.07) parts.push(`swell coming in at an angle from the ${c.angle > 0 ? 'left' : 'right'}`);
   if (c.current !== 0) parts.push(`current pulling ${c.current > 0 ? 'right' : 'left'}`);
+  if (c.swell2) parts.push(`a second swell crossing in from the ${c.swell2.angle > 0 ? 'left' : 'right'}`);
   if (c.windZ > 1) parts.push('crumbly spilling waves');
   else if (c.windZ < -1) parts.push('hollow plunging waves');
   parts.push(`tide ${tideRising(c, 0) ? 'rising' : 'dropping'}`);

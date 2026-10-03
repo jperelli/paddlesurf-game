@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { BEACH_Z, brokenAmount, chopAt, crestSkew, crestZ, localHeight, profile, steepness, type SpotConfig, type Wave } from './wave';
+import { BEACH_Z, SHORE_Z, brokenAmount, chopAt, crestSkew, crestZ, localHeight, profile, steepness, type SpotConfig, type Wave } from './wave';
 import type { WaterPalette } from './palette';
 import { WAKE_LIFE, type WakePoint } from './wake';
 import { tileableFbm } from './noise';
@@ -88,7 +88,10 @@ export class Sea {
   private positions: Float32Array;
   private colors: Float32Array;
   private foamAttr: Float32Array;
+  private thinAttr: Float32Array;
   private timeUniform = { value: 0 };
+  private shallowUniform = { value: new THREE.Color() };
+  private sssUniform = { value: new THREE.Color() };
   private nx: number;
   private nz: number;
   private deep = new THREE.Color();
@@ -107,6 +110,10 @@ export class Sea {
     this.positions = new Float32Array(n * 3);
     this.colors = new Float32Array(n * 3);
     this.foamAttr = new Float32Array(n);
+    this.thinAttr = new Float32Array(n);
+    // Still-water depth under each vertex: a beach sloping out to ~7 m, so the sand shows
+    // through near the shore and the water goes dark and deep outside.
+    const depthAttr = new Float32Array(n);
     const uvs = new Float32Array(n * 2);
     const indices: number[] = [];
     for (let j = 0; j < this.nz; j++) {
@@ -117,6 +124,7 @@ export class Sea {
         this.positions[k * 3 + 2] = Z_MIN + j * STEP;
         uvs[k * 2] = (X_MIN + i * STEP) * UV_SCALE;
         uvs[k * 2 + 1] = (Z_MIN + j * STEP) * UV_SCALE;
+        depthAttr[k] = Math.min(7, Math.max(0, (SHORE_Z - (Z_MIN + j * STEP)) * 0.16));
         if (i < this.nx - 1 && j < this.nz - 1) {
           const a = k;
           const b = k + 1;
@@ -131,6 +139,8 @@ export class Sea {
     this.geometry.setAttribute('color', new THREE.BufferAttribute(this.colors, 3));
     this.geometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
     this.geometry.setAttribute('foam', new THREE.BufferAttribute(this.foamAttr, 1));
+    this.geometry.setAttribute('thin', new THREE.BufferAttribute(this.thinAttr, 1));
+    this.geometry.setAttribute('depth', new THREE.BufferAttribute(depthAttr, 1));
     this.geometry.setIndex(indices);
     const material = new THREE.MeshStandardMaterial({
       vertexColors: true,
@@ -143,14 +153,30 @@ export class Sea {
     material.onBeforeCompile = (shader) => {
       shader.uniforms.uTime = this.timeUniform;
       shader.uniforms.foamMap = { value: foamNoiseMap() };
+      shader.uniforms.shallowColor = this.shallowUniform;
+      shader.uniforms.sssColor = this.sssUniform;
       shader.vertexShader = shader.vertexShader
-        .replace('#include <common>', '#include <common>\nattribute float foam;\nvarying float vFoam;')
-        .replace('#include <begin_vertex>', '#include <begin_vertex>\nvFoam = foam;');
+        .replace(
+          '#include <common>',
+          '#include <common>\nattribute float foam;\nattribute float thin;\nattribute float depth;\nvarying float vFoam;\nvarying float vThin;\nvarying float vDepth;',
+        )
+        .replace('#include <begin_vertex>', '#include <begin_vertex>\nvFoam = foam;\nvThin = thin;\nvDepth = depth + position.y;');
       shader.fragmentShader = shader.fragmentShader
-        .replace('#include <common>', '#include <common>\nuniform float uTime;\nuniform sampler2D foamMap;\nvarying float vFoam;')
+        .replace(
+          '#include <common>',
+          '#include <common>\nuniform float uTime;\nuniform sampler2D foamMap;\nuniform vec3 shallowColor;\nuniform vec3 sssColor;\nvarying float vFoam;\nvarying float vThin;\nvarying float vDepth;',
+        )
         .replace(
           '#include <color_fragment>',
           `#include <color_fragment>
+	// Depth tint: light travels through the water along the view ray (Beer-Lambert), so shallow
+	// water and glancing looks show the sand through, deep water looking straight down is dark.
+	float ndv = max( 0.1, dot( normalize( vViewPosition ), normalize( vNormal ) ) );
+	float absorb = 1.0 - exp( -0.5 * max( 0.0, vDepth ) / ndv );
+	diffuseColor.rgb = mix( shallowColor, diffuseColor.rgb, absorb );
+	// Thin standing faces let light through: translucent green, stronger seen edge-on.
+	float sss = vThin * ( 0.3 + 0.5 * ( 1.0 - ndv ) ) * ( 1.0 - vFoam );
+	diffuseColor.rgb = mix( diffuseColor.rgb, sssColor, sss );
 	float fpA = texture2D( foamMap, vNormalMapUv * 1.9 + uTime * vec2( 0.012, 0.02 ) ).r;
 	float fpB = texture2D( foamMap, vNormalMapUv * 6.1 - uTime * vec2( 0.03, 0.017 ) ).r;
 	float foamPat = smoothstep( 0.3, 0.75, 0.6 * fpA + 0.4 * fpB );
@@ -182,6 +208,8 @@ export class Sea {
     this.foam.set(p.foam);
     this.lip.copy(this.face).lerp(new THREE.Color(p.sky), 0.6);
     this.shadow.copy(this.foam).lerp(this.deep, 0.45);
+    this.shallowUniform.value.set(p.sand).lerp(this.face, 0.4);
+    this.sssUniform.value.copy(this.face).lerp(this.foam, 0.45).offsetHSL(0.03, 0.1, 0);
     (this.beach.material as THREE.MeshStandardMaterial).color.set(p.sand);
     (this.far.material as THREE.MeshStandardMaterial).color.set(p.deep);
   }
@@ -200,6 +228,7 @@ export class Sea {
     const pos = this.positions;
     const col = this.colors;
     const foamA = this.foamAttr;
+    const thinA = this.thinAttr;
     let wx0 = Infinity;
     let wx1 = -Infinity;
     let wz0 = Infinity;
@@ -251,6 +280,7 @@ export class Sea {
         let rise = 0;
         let lipAmt = 0;
         let shade = 0;
+        let thin = 0;
         for (const wi of active) {
           const w = waves[wi];
           const L = w.length;
@@ -268,6 +298,7 @@ export class Sea {
           if (d > 3 * L || d < -3 * L) continue;
           const near = Math.exp(-(d * d) / (L * L * (d > 0 ? 0.6 : 1.4)));
           rise = Math.max(rise, near * Math.min(1, w.height / 1.4));
+          if (d > -0.3 * L && d < 1.2 * L) thin = Math.max(thin, Math.min(1, steep * 1.1 * Math.min(1, hw / 0.8)) * f);
           const hollow = Math.max(0, (st - 0.4) / 0.6);
           if (hollow > 0 && d > -0.2 * L && d < 0.9 * L) {
             lipAmt = Math.max(lipAmt, hollow * Math.exp(-((d - 0.25 * L) ** 2) / (0.08 * L * L)));
@@ -307,6 +338,7 @@ export class Sea {
         pos[k + 1] = h;
         pos[k + 2] = zz;
         foamA[k / 3] = Math.min(1, foamAmt);
+        thinA[k / 3] = thin;
         const c = this.tmp.copy(this.deep).lerp(this.face, Math.min(1, rise * 1.3 + Math.max(0, h) * 0.25));
         if (lipAmt > 0) c.lerp(this.lip, Math.min(1, lipAmt * 0.7));
         if (foamAmt > 0) c.lerp(this.foam, Math.min(1, foamAmt));
@@ -319,6 +351,7 @@ export class Sea {
     this.geometry.attributes.position.needsUpdate = true;
     this.geometry.attributes.color.needsUpdate = true;
     this.geometry.attributes.foam.needsUpdate = true;
+    this.geometry.attributes.thin.needsUpdate = true;
     this.geometry.computeVertexNormals();
   }
 }
