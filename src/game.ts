@@ -35,6 +35,7 @@ export type EndReason = 'peak' | 'closeout' | 'caught' | 'overback' | 'faded';
 export const POCKET_WIDTH = 6;
 const LINEUP_Z = -2;
 const WIPEOUTS: EndReason[] = ['peak', 'closeout', 'caught'];
+const HINTS_KEY = 'paddlesurf.hints';
 
 interface Ride {
   wave: Wave;
@@ -79,7 +80,8 @@ export class Game {
   seed = newSessionCode();
   spot: Spot;
   surfer: Surfer;
-  hint = true;
+  /** Peak/pocket markers: off unless turned on in Settings or with H. */
+  hint = localStorage.getItem(HINTS_KEY) === '1';
 
   x = 0;
   z = LINEUP_Z;
@@ -128,7 +130,7 @@ export class Game {
     this.scene.add(this.wake.group);
 
     this.sea = new Sea(spot.water, quality);
-    this.scene.add(this.sea.mesh, this.sea.beach, this.sea.far);
+    this.scene.add(this.sea.mesh, this.sea.floor, this.sea.beach, this.sea.far);
     this.lips = new Lips(spot.water, quality);
     this.scene.add(this.lips.group);
     this.scheduler = new WaveScheduler(spot, this.conditions);
@@ -234,7 +236,7 @@ export class Game {
   update(dt: number): void {
     dt = Math.min(dt, 0.05);
     const input = this.input;
-    if (input.wasPressed('KeyH')) this.hint = !this.hint;
+    if (input.wasPressed('KeyH')) this.setHint(!this.hint);
 
     if (this.phase !== 'start') {
       this.t += dt;
@@ -517,6 +519,11 @@ export class Game {
       }
     }
     this.rig.pose(this.stance, stroke, Math.min(1, crouch), riding && this.ride ? (-this.ride.dir as 1 | -1) : this.paddleSide, lookYaw, lookPitch, turn);
+  }
+
+  setHint(on: boolean): void {
+    this.hint = on;
+    localStorage.setItem(HINTS_KEY, on ? '1' : '0');
   }
 
   private updateHints(): void {

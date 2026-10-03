@@ -195,7 +195,7 @@ export class Hud {
     this.scoreEl.textContent = String(s.score);
     this.caughtEl.textContent = String(s.caught);
     this.rideEl.textContent = s.phase === 'riding' ? `+${Math.round(s.ridePoints * 10)}` : '';
-    this.hintEl.textContent = s.hint ? 'Hints on (H): red = peak, green = pockets' : 'Hints off (H)';
+    this.hintEl.textContent = s.hint ? 'Hints on (H): red = peak, green = pockets' : '';
     this.startCard.classList.toggle('hidden', s.phase !== 'start');
     if (this.msgTimer && now > this.msgTimer) {
       this.msgEl.classList.remove('show');

@@ -25,7 +25,7 @@ Open the printed URL, press any key and paddle out.
 
 On phones and tablets an on-screen joystick (drag the knob, diagonals work), POWER button and Hints/Settings buttons replace the keyboard; tap the screen to start or paddle back out.
 
-`H` toggles the learning hints (red cone = peak, green bars = the two pockets). `Esc` opens settings.
+Peak/pocket markers are off by default; turn them on in Settings > Gameplay (or press `H`) to see them as learning hints (red cone = peak, green bars = the two pockets). The water is clear enough to see the sand bottom: about 2 m deep out the back, ramping up to the beach. `Esc` opens settings.
 
 ## Look
 

@@ -53,6 +53,10 @@ export class SettingsPanel {
         </div>
       </section>
       <section>
+        <h3>Gameplay</h3>
+        <label><input id="st-hints" type="checkbox" /> Show peak and pocket hints (red cone = peak, green = pockets; H toggles them in the water)</label>
+      </section>
+      <section>
         <h3>Graphics</h3>
         <label>Quality <select id="st-quality"><option value="high">High: full water detail, all the spray</option><option value="low">Low: smoother on phones</option></select></label>
         <p class="small" id="st-quality-note"></p>
@@ -87,6 +91,7 @@ export class SettingsPanel {
   toggle(force?: boolean): void {
     this.open = force ?? !this.open;
     this.root.classList.toggle('hidden', !this.open);
+    if (this.open) this.q<HTMLInputElement>('#st-hints').checked = this.game.hint;
   }
 
   private get surfer() {
@@ -98,6 +103,8 @@ export class SettingsPanel {
 
   private bind(): void {
     this.q('#st-close').onclick = () => this.toggle(false);
+    const hints = this.q<HTMLInputElement>('#st-hints');
+    hints.onchange = () => this.game.setHint(hints.checked);
     const qsel = this.q<HTMLSelectElement>('#st-quality');
     qsel.value = this.game.quality;
     this.q('#st-quality-note').textContent = isSaved()

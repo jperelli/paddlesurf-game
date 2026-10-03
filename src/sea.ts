@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { BEACH_Z, SHORE_Z, brokenAmount, chopAt, crestSkew, crestZ, localHeight, profile, steepness, type SpotConfig, type Wave } from './wave';
+import { BEACH_Z, LIP_LIFT, brokenAmount, chopAt, crestSkew, crestZ, lipDistance, localHeight, profile, steepness, type SpotConfig, type Wave } from './wave';
 import type { WaterPalette } from './palette';
 import { WAKE_LIFE, type WakePoint } from './wake';
 import { tileableFbm } from './noise';
@@ -11,6 +11,22 @@ const X_MAX = 90;
 const Z_MIN = -100;
 const Z_MAX = BEACH_Z + 10;
 const UV_SCALE = 1 / 6;
+const FLOOR_STEP = 2;
+const DEEP = 2;
+
+/**
+ * Sea floor: about 2 m down out the back, then a ramp up to the beach with small bumps.
+ * Height in metres (negative = under the still-water surface).
+ */
+export function floorY(x: number, z: number): number {
+  const s = Math.min(1, Math.max(0, (z + 30) / (BEACH_Z + 30)));
+  const ramp = 0.75 * s + 0.25 * s * s * (3 - 2 * s);
+  const bump =
+    0.12 * Math.sin(0.23 * x + 0.41 * z) * Math.sin(0.17 * z - 0.31 * x + 1.3) +
+    0.07 * Math.sin(0.61 * x - 0.53 * z + 0.4) +
+    0.04 * Math.sin(1.3 * x + 0.9 * z);
+  return -DEEP + (DEEP - 0.15) * ramp + bump;
+}
 
 /** Tileable greyscale bubble/streak pattern that breaks up the foam colour. */
 function foamNoiseMap(size = 256): THREE.DataTexture {
@@ -89,6 +105,8 @@ const RIPPLE_NORMALS_LOW = /* glsl */ `
 export class Sea {
   readonly mesh: THREE.Mesh;
   readonly beach: THREE.Mesh;
+  /** Sand bottom under the water: flat and deep outside, ramping up to the beach. */
+  readonly floor: THREE.Mesh;
   /** Flat water out to the horizon beyond the simulated grid, fogged into the sky. */
   readonly far: THREE.Mesh;
   private geometry: THREE.BufferGeometry;
@@ -125,8 +143,8 @@ export class Sea {
     this.colors = new Float32Array(n * 3);
     this.foamAttr = new Float32Array(n);
     this.thinAttr = new Float32Array(n);
-    // Still-water depth under each vertex: a beach sloping out to ~7 m, so the sand shows
-    // through near the shore and the water goes dark and deep outside.
+    // Still-water depth under each vertex from the sea floor, so the sand shows through
+    // near the shore and the water goes dark and deep outside.
     const depthAttr = new Float32Array(n);
     const uvs = new Float32Array(n * 2);
     const indices: number[] = [];
@@ -138,7 +156,7 @@ export class Sea {
         this.positions[k * 3 + 2] = Z_MIN + j * STEP;
         uvs[k * 2] = (X_MIN + i * STEP) * UV_SCALE;
         uvs[k * 2 + 1] = (Z_MIN + j * STEP) * UV_SCALE;
-        depthAttr[k] = Math.min(7, Math.max(0, (SHORE_Z - (Z_MIN + j * STEP)) * 0.16));
+        depthAttr[k] = Math.max(0, -floorY(X_MIN + i * STEP, Z_MIN + j * STEP));
         if (i < this.nx - 1 && j < this.nz - 1) {
           const a = k;
           const b = k + 1;
@@ -158,6 +176,7 @@ export class Sea {
     this.geometry.setIndex(indices);
     const material = new THREE.MeshStandardMaterial({
       vertexColors: true,
+      transparent: true,
       roughness: 0.34,
       metalness: 0,
       envMapIntensity: 0.7,
@@ -204,8 +223,11 @@ export class Sea {
 	// Depth tint: light travels through the water along the view ray (Beer-Lambert), so shallow
 	// water and glancing looks show the sand through, deep water looking straight down is dark.
 	float ndv = max( 0.1, dot( normalize( vViewPosition ), normalize( vNormal ) ) );
-	float absorb = 1.0 - exp( -0.5 * max( 0.0, vDepth ) / ndv );
+	float absorb = 1.0 - exp( -0.8 * max( 0.0, vDepth ) / ndv );
 	diffuseColor.rgb = mix( shallowColor, diffuseColor.rgb, absorb );
+	// Clear water: the sand shows through, strongly where it is shallow; foam is opaque.
+	float clear = 1.0 - exp( -0.35 * max( 0.0, vDepth ) / ndv );
+	diffuseColor.a = max( mix( 0.25, 0.9, clear ), vFoam );
 	// Thin standing faces let light through: translucent green, stronger seen edge-on.
 	float sss = vThin * ( 0.3 + 0.5 * ( 1.0 - ndv ) ) * ( 1.0 - vFoam );
 	diffuseColor.rgb = mix( diffuseColor.rgb, sssColor, sss );
@@ -220,6 +242,38 @@ export class Sea {
     };
     this.mesh = new THREE.Mesh(this.geometry, material);
     this.mesh.receiveShadow = true;
+    this.mesh.renderOrder = -1;
+
+    const fnx = Math.round((X_MAX - X_MIN) / FLOOR_STEP) + 1;
+    const fnz = Math.round((BEACH_Z - Z_MIN) / FLOOR_STEP) + 1;
+    const floorPos = new Float32Array(fnx * fnz * 3);
+    const floorCol = new Float32Array(fnx * fnz * 3);
+    const floorIdx: number[] = [];
+    for (let j = 0; j < fnz; j++) {
+      for (let i = 0; i < fnx; i++) {
+        const k = j * fnx + i;
+        const x = X_MIN + i * FLOOR_STEP;
+        const z = Z_MIN + j * FLOOR_STEP;
+        const y = floorY(x, z);
+        floorPos[k * 3] = x;
+        floorPos[k * 3 + 1] = y;
+        floorPos[k * 3 + 2] = z;
+        // Wet sand goes darker with depth; ripples and patches of weed break it up.
+        const grain = 0.9 + 0.1 * Math.sin(0.9 * x + 1.7 * z) * Math.sin(0.4 * x - 0.6 * z);
+        const shade = (0.55 + 0.45 * Math.max(0, 1 + y / DEEP)) * grain;
+        floorCol[k * 3] = shade;
+        floorCol[k * 3 + 1] = shade;
+        floorCol[k * 3 + 2] = shade * 0.96;
+        if (i < fnx - 1 && j < fnz - 1) floorIdx.push(k, k + fnx, k + 1, k + 1, k + fnx, k + fnx + 1);
+      }
+    }
+    const floorGeo = new THREE.BufferGeometry();
+    floorGeo.setAttribute('position', new THREE.BufferAttribute(floorPos, 3));
+    floorGeo.setAttribute('color', new THREE.BufferAttribute(floorCol, 3));
+    floorGeo.setIndex(floorIdx);
+    floorGeo.computeVertexNormals();
+    this.floor = new THREE.Mesh(floorGeo, new THREE.MeshStandardMaterial({ color: palette.sand, vertexColors: true, roughness: 1 }));
+    this.floor.receiveShadow = true;
 
     const beachGeo = new THREE.PlaneGeometry(X_MAX - X_MIN + 40, 80, 1, 1);
     beachGeo.rotateX(-Math.PI / 2);
@@ -255,6 +309,7 @@ export class Sea {
     this.shallowUniform.value.set(p.sand).lerp(this.face, 0.4);
     this.sssUniform.value.copy(this.face).lerp(this.foam, 0.45).offsetHSL(0.03, 0.1, 0);
     (this.beach.material as THREE.MeshStandardMaterial).color.set(p.sand);
+    (this.floor.material as THREE.MeshStandardMaterial).color.set(p.sand);
     (this.far.material as THREE.MeshStandardMaterial).color.set(p.deep);
   }
 
@@ -334,7 +389,7 @@ export class Sea {
           const b = brokenAmount(w, x, t, spot);
           const st = steepness(w, x, t, spot);
           const steep = st * (1 - b);
-          const amp = hw * (1 - 0.35 * b);
+          const amp = hw * (1 + LIP_LIFT * steep) * (1 - 0.35 * b);
           const f = profile(d, L, steep, b);
           h += amp * f + (b > 0 ? b * 0.12 * amp * Math.sin(2.7 * x + 6 * t) * Math.cos(1.9 * d - 4 * t) : 0);
           zz += (0.7 * steep * amp + 0.9 * b * amp) * f * f;
@@ -348,20 +403,24 @@ export class Sea {
             lipAmt = Math.max(lipAmt, hollow * Math.exp(-((d - 0.25 * L) ** 2) / (0.08 * L * L)));
           }
           if (b > 0) {
-            let front: number;
-            const fe = L * (1.3 + 0.6 * (1 - w.hollow) + 0.35 * Math.sin(1.7 * x + 3 * t) + 0.2 * Math.sin(4.3 * x - 2.2 * t));
-            const fb = -L * (0.3 + 0.18 * Math.sin(2.1 * x + 1.3 * t) + 0.1 * Math.sin(5.3 * x - 2 * t));
-            if (d >= fb && d <= fe) front = 1;
-            else if (d > fe) front = Math.exp(-((d - fe) ** 2) / (0.1 * L * L));
+            // Foam forms where the lip lands and is left behind the crest: dense and wide at the
+            // breaking lip, thinning to a narrow patchy trail along the older whitewater.
+            const fresh = 0.3 + 0.7 * Math.exp(-lipDistance(w, x, t, spot) / 15);
+            const wob = 0.25 * Math.sin(1.7 * x + 3 * t) + 0.15 * Math.sin(4.3 * x - 2.2 * t);
+            const fe = L * (0.1 + 0.25 * fresh) * (1 + wob);
+            const trail = L * (0.25 + 1.75 * fresh) * (1 + 0.3 * wob);
+            let front = 0;
+            if (d > 0) front = d < fe ? 1 - d / fe : 0;
             else {
-              // Trailing foam behind the whitewater: thins out and breaks into patches.
-              const back = (fb - d) / (1.4 * L);
-              const patch = 0.5 + 0.5 * Math.sin(1.3 * x + 0.9 * d + 2 * t) * Math.sin(0.6 * x - 1.1 * d + 0.7 * t);
-              front = Math.exp(-back * back) * (1 - 0.45 * Math.min(1, back * 3) * patch);
+              const back = -d / trail;
+              if (back < 1) {
+                const patch = 0.5 + 0.5 * Math.sin(1.3 * x + 0.9 * d + 2 * t) * Math.sin(0.6 * x - 1.1 * d + 0.7 * t);
+                front = (1 - back) * (1 - (0.2 + 0.6 * (1 - fresh)) * back * patch);
+              }
             }
-            foamAmt = Math.max(foamAmt, b * front);
-            if (dt > 0 && b > 0.5 && d >= fb && d <= fe) patches.deposit(x, z, 0.15 * b * dt);
-            if (d > 0.4 * L && d < 2.2 * L) shade = Math.max(shade, b * 0.55 * Math.min(1, (d - 0.4 * L) / (0.9 * L)));
+            foamAmt = Math.max(foamAmt, b * fresh * front);
+            if (dt > 0 && b > 0.5 && fresh > 0.5 && d > -0.6 * L && d < fe) patches.deposit(x, z, 0.15 * b * fresh * dt);
+            if (d > 0.2 * L && d < 1.4 * L) shade = Math.max(shade, b * fresh * 0.5 * Math.min(1, (d - 0.2 * L) / (0.6 * L)));
           }
         }
         // Small ripples and a foam smear along the board's wake.
@@ -384,7 +443,7 @@ export class Sea {
         foamA[k / 3] = Math.min(1, foamAmt);
         thinA[k / 3] = thin;
         const c = this.tmp.copy(this.deep).lerp(this.face, Math.min(1, rise * 1.3 + Math.max(0, h) * 0.25));
-        if (lipAmt > 0) c.lerp(this.lip, Math.min(1, lipAmt * 0.7));
+        if (lipAmt > 0) c.lerp(this.lip, Math.min(1, lipAmt * 0.9));
         if (foamAmt > 0) c.lerp(this.foam, Math.min(1, foamAmt));
         if (shade > 0) c.lerp(this.shadow, shade);
         col[k] = c.r;

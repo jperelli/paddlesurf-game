@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { Quality } from './quality';
 import {
   CURL_WIDTH,
+  LIP_LIFT,
   brokenAmount,
   brokenHalfWidth,
   crestZ,
@@ -181,7 +182,7 @@ export class Lips {
       roughness: 0.35,
       metalness: 0.05,
       transparent: true,
-      opacity: 0.96,
+      opacity: 0.82,
     });
     for (let i = 0; i < POOL; i++) {
       const s = makeStrip(this.material);
@@ -300,20 +301,21 @@ export class Lips {
       const x = x0 + side * s * STRIP_LEN;
       const dx = Math.abs(x - w.peakX) - half;
       const edge = dx < 0 ? Math.max(0, 1 + dx / 1.5) : dx < CURL_WIDTH ? 1 : Math.max(0, 1 - (dx - CURL_WIDTH) / 6);
-      const amp = localHeight(w, x, t) * (1 - 0.35 * brokenAmount(w, x, t, spot));
+      const st = steepness(w, x, t, spot);
+      const amp = localHeight(w, x, t) * (1 + LIP_LIFT * st) * (1 - 0.35 * brokenAmount(w, x, t, spot));
       const czx = cz + tanA * (x - w.peakX);
       const throwRamp = Math.min(1, Math.max(0, (czx - (w.breakZ - 3)) / 7));
-      const T = steepness(w, x, t, spot) * edge * throwRamp;
+      const T = st * edge * throwRamp;
       maxT = Math.max(maxT, T);
       const top = seaPointAt(waves, x, czx, t, spot, this.pt);
       const topY = top.y;
       const topZ = top.z;
       // Circle through the crest top, curling forward and down; the surfer rides inside it.
-      const R = 0.9 * amp * T;
-      const th0 = -0.35;
+      const R = 0.6 * amp * T;
+      const th0 = -0.6;
       const zc = topZ + R * Math.sin(-th0);
       const yc = topY - R * Math.cos(th0);
-      const thEnd = 2.65;
+      const thEnd = 2.75;
       const ripple = 0.05 * amp * Math.sin(5 * x + 11 * t);
       for (let j = 0; j <= NV; j++) {
         const v = j / NV;
@@ -322,7 +324,7 @@ export class Lips {
         pos[k] = x + 0.12 * T * Math.sin(3 * x + 7 * t + 2 * v);
         pos[k + 1] = Math.max(0.05, yc + R * Math.cos(th) + ripple * v) + (j === 0 ? 0.03 : 0);
         pos[k + 2] = zc + R * Math.sin(th);
-        const c = this.tmp.copy(this.lipColor).lerp(this.foamColor, Math.min(1, Math.max(0, (v - 0.4) / 0.45)));
+        const c = this.tmp.copy(this.lipColor).lerp(this.foamColor, Math.min(1, Math.max(0, (v - 0.25) / 0.5)));
         col[k] = c.r;
         col[k + 1] = c.g;
         col[k + 2] = c.b;

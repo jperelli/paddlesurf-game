@@ -71,6 +71,8 @@ export const BEACH_Z = 58;
 export const SMALL_WAVE_MAX = 0.5;
 /** Width (m) of the curling lip zone next to the whitewater: the pocket. */
 export const CURL_WIDTH = 9;
+/** How much a face that is standing up rises above the swell height: the lip stands tall at the pocket. */
+export const LIP_LIFT = 0.35;
 
 export interface SeaPoint {
   y: number;
@@ -179,6 +181,17 @@ export function peelLabel(w: Wave): string {
   return w.peel === 1 ? 'right →' : w.peel === -1 ? '← left' : '← A-frame →';
 }
 
+/** Distance (m) along the crest from x to the nearest breaking lip, the moving edge of the whitewater. */
+export function lipDistance(w: Wave, x: number, t: number, spot: SpotConfig): number {
+  let best = Infinity;
+  for (const f of w.fronts) {
+    const r = spot.peelSpeed * (t - f.startT);
+    const d = f.dir === 0 ? Math.abs(Math.abs(x - f.x) - r) : Math.abs((x - f.x) * f.dir - r);
+    if (d < best) best = d;
+  }
+  return best;
+}
+
 /** 0 = green face, 1 = whitewater. Soft, ragged edge a couple of metres wide. */
 export function brokenAmount(w: Wave, x: number, t: number, spot: SpotConfig): number {
   let best = 0;
@@ -233,7 +246,7 @@ export function waveDisplaceAt(w: Wave, x: number, z: number, t: number, spot: S
   const h = localHeight(w, x, t);
   const broken = brokenAmount(w, x, t, spot);
   const steep = steepness(w, x, t, spot) * (1 - broken);
-  const amp = h * (1 - 0.35 * broken);
+  const amp = h * (1 + LIP_LIFT * steep) * (1 - 0.35 * broken);
   const f = profile(d, L, steep, broken);
   let y = amp * f;
   if (broken > 0) y += broken * 0.12 * amp * Math.sin(2.7 * x + 6 * t) * Math.cos(1.9 * d - 4 * t);
