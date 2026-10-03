@@ -3,6 +3,7 @@ import { BEACH_Z, brokenAmount, chopAt, crestSkew, crestZ, localHeight, profile,
 import type { WaterPalette } from './palette';
 import { WAKE_LIFE, type WakePoint } from './wake';
 import { tileableFbm } from './noise';
+import { FoamField } from './foam';
 
 const X_MIN = -90;
 const X_MAX = 90;
@@ -96,6 +97,8 @@ export class Sea {
   private lip = new THREE.Color();
   private shadow = new THREE.Color();
   private tmp = new THREE.Color();
+  /** Foam patches left by earlier waves, drifting with current and wind. */
+  readonly patches = new FoamField(X_MIN, X_MAX, Z_MIN, Z_MAX);
 
   constructor(palette: WaterPalette) {
     this.nx = Math.round((X_MAX - X_MIN) / STEP) + 1;
@@ -183,8 +186,17 @@ export class Sea {
     (this.far.material as THREE.MeshStandardMaterial).color.set(p.deep);
   }
 
-  update(waves: Wave[], t: number, spot: SpotConfig, wake: WakePoint[] = []): void {
+  update(
+    waves: Wave[],
+    t: number,
+    spot: SpotConfig,
+    wake: WakePoint[] = [],
+    dt = 0,
+    drift = { x: 0, z: 0 },
+  ): void {
     this.timeUniform.value = t;
+    if (dt > 0) this.patches.step(dt, drift.x, drift.z);
+    const patches = this.patches;
     const pos = this.positions;
     const col = this.colors;
     const foamA = this.foamAttr;
@@ -222,6 +234,20 @@ export class Sea {
         // Colour: deep -> face as the water rises, a bright backlit lip on hollow faces,
         // foam where the wave is broken, a grey-blue shadow on the tumbling front of the whitewater.
         let foamAmt = shoreFoam > 0 ? shoreFoam * (0.6 + 0.4 * Math.sin(x * 0.7 + t * 2 + z)) : 0;
+        if (shoreFoam > 0) {
+          // Backwash: thin sheets of foamy water sliding back down the beach, out to sea.
+          const bw = Math.max(0, Math.sin(0.7 * z + 2.2 * t + 0.4 * Math.sin(0.3 * x + 0.5 * t)));
+          const sheet = shoreFoam * bw * bw * bw;
+          foamAmt = Math.max(foamAmt, 0.9 * sheet);
+          h -= 0.05 * sheet;
+        }
+        const old = patches.sample(x, z);
+        if (old > 0.03) {
+          // Old foam survives in streaks and patches, not as a blanket.
+          const pn = 0.5 + 0.5 * Math.sin(1.1 * x + 0.8 * z + 0.6 * t) * Math.sin(0.45 * x - 0.7 * z + 0.3 * t);
+          const mask = Math.min(1, Math.max(0, (pn - 0.25) / 0.5));
+          foamAmt = Math.max(foamAmt, 0.6 * old * mask);
+        }
         let rise = 0;
         let lipAmt = 0;
         let shade = 0;
@@ -259,6 +285,7 @@ export class Sea {
               front = Math.exp(-back * back) * (1 - 0.45 * Math.min(1, back * 3) * patch);
             }
             foamAmt = Math.max(foamAmt, b * front);
+            if (dt > 0 && b > 0.5 && d >= fb && d <= fe) patches.deposit(x, z, 0.15 * b * dt);
             if (d > 0.4 * L && d < 2.2 * L) shade = Math.max(shade, b * 0.55 * Math.min(1, (d - 0.4 * L) / (0.9 * L)));
           }
         }

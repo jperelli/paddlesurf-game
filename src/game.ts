@@ -170,6 +170,7 @@ export class Game {
     this.phase = 'waiting';
     this.conditions = rollConditions();
     this.scheduler.reset(this.conditions);
+    this.sea.patches.clear();
     this.lips.setConditions(this.conditions);
     this.t = 0;
     this.score = 0;
@@ -214,7 +215,10 @@ export class Game {
 
     const speed = this.phase === 'start' ? 0 : Math.hypot(this.vx, this.vz);
     this.wake.update(this.t, this.x, this.z, this.heading, speed, this.scheduler.waves, this.spot);
-    this.sea.update(this.scheduler.waves, this.t, this.spot, this.wake.points);
+    this.sea.update(this.scheduler.waves, this.t, this.spot, this.wake.points, dt, {
+      x: this.conditions.current + 0.04 * this.conditions.windX,
+      z: 0.04 * this.conditions.windZ,
+    });
     this.skyDome.update(this.t);
     this.lips.update(this.scheduler.waves, this.t, this.spot, dt);
     this.placeRig();
