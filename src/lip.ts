@@ -114,12 +114,27 @@ class SprayPool {
     this.life[i] = life;
   }
 
+  /** Droplets that flew into the camera during the last step. */
+  hits = 0;
+
   /** Integrate: gravity plus air drag pulling the horizontal velocity toward the wind. */
-  step(dt: number, gravity: number, wind: { x: number; z: number }, drag: number): void {
+  step(dt: number, gravity: number, wind: { x: number; z: number }, drag: number, cam: THREE.Vector3 | null = null): void {
     const { pos, vel, life } = this;
     const wk = Math.min(1, drag * dt);
+    this.hits = 0;
     for (let i = 0; i < this.n; i++) {
       if (life[i] <= 0) continue;
+      if (cam) {
+        const dx = pos[i * 3] - cam.x;
+        const dy = pos[i * 3 + 1] - cam.y;
+        const dz = pos[i * 3 + 2] - cam.z;
+        if (dx * dx + dy * dy + dz * dz < 2.2) {
+          this.hits++;
+          life[i] = 0;
+          pos[i * 3 + 1] = -50;
+          continue;
+        }
+      }
       life[i] -= dt;
       vel[i * 3 + 1] -= gravity * dt;
       vel[i * 3] += (wind.x - vel[i * 3]) * wk;
@@ -208,7 +223,10 @@ export class Lips {
     );
   }
 
-  update(waves: Wave[], t: number, spot: SpotConfig, dt: number): void {
+  /** Spray droplets that hit the camera this frame (for the lens). */
+  lensHits = 0;
+
+  update(waves: Wave[], t: number, spot: SpotConfig, dt: number, cam: THREE.Vector3 | null = null): void {
     let used = 0;
     for (const w of waves) {
       if (!w.isSet || w.fronts.length === 0) continue;
@@ -250,8 +268,9 @@ export class Lips {
     }
 
     // Heavy spray falls fast and barely feels the wind; the fine mist is carried by it.
-    this.spray.step(dt, 6, this.wind, 0.6);
-    this.mist.step(dt, 3.5, this.wind, 2.2);
+    this.spray.step(dt, 6, this.wind, 0.6, cam);
+    this.mist.step(dt, 3.5, this.wind, 2.2, cam);
+    this.lensHits = this.spray.hits + this.mist.hits;
   }
 
   private fill(

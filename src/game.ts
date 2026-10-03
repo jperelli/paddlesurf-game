@@ -23,6 +23,8 @@ import {
 import type { Spot, Surfer } from './roster';
 import type { Hud } from './hud';
 import { describeConditions, rollConditions, tideRising, type Conditions } from './conditions';
+import { LensDrops } from './lens';
+import { sunColor, sunElevation, sunLow } from './sky';
 
 export type Phase = 'start' | 'waiting' | 'riding' | 'ended';
 export type EndReason = 'peak' | 'closeout' | 'caught' | 'overback' | 'faded';
@@ -93,9 +95,13 @@ export class Game {
   private camLook = new THREE.Vector3(0, 0, -20);
 
   private hud: Hud;
+  private lens: LensDrops;
 
   constructor(canvas: HTMLCanvasElement, spot: Spot, surfer: Surfer, hud: Hud) {
     this.hud = hud;
+    const lensCanvas = hud.root.querySelector<HTMLCanvasElement>('#hud-lens');
+    if (!lensCanvas) throw new Error('lens canvas missing');
+    this.lens = new LensDrops(lensCanvas);
     this.spot = spot;
     this.surfer = surfer;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -142,6 +148,7 @@ export class Game {
     const w = window.innerWidth;
     const h = window.innerHeight;
     this.renderer.setSize(w, h, false);
+    this.lens.resize(w, h);
     this.camera.aspect = w / h;
     // Portrait phones: shift the frame up so the surfer sits above the on-screen controls.
     if (h > w) this.camera.setViewOffset(w, h, 0, h * 0.13, w, h);
@@ -155,10 +162,21 @@ export class Game {
     this.sea.setPalette(spot.water);
     this.lips.setPalette(spot.water);
     this.wake.setPalette(spot.water);
-    this.skyDome.apply(spot.water, this.scene, this.sun);
-    const sky = new THREE.Color(spot.water.sky);
-    this.hemi.color.set(sky).lerp(new THREE.Color(0xffffff), 0.5);
-    this.hemi.groundColor.set(spot.water.deep).multiplyScalar(0.7);
+    this.applyLight();
+  }
+
+  /** Sky, sun and ambient for the current spot at the session's time of day. */
+  private applyLight(): void {
+    const hour = this.conditions.hour;
+    this.skyDome.apply(this.spot.water, this.scene, this.sun, hour);
+    const low = sunLow(hour);
+    const up = Math.sin(THREE.MathUtils.degToRad(sunElevation(hour)));
+    const sky = new THREE.Color(this.spot.water.sky);
+    this.hemi.color.set(sky).lerp(new THREE.Color(0xffffff), 0.5).lerp(new THREE.Color(0xf0b890), 0.35 * low);
+    this.hemi.groundColor.set(this.spot.water.deep).multiplyScalar(0.7);
+    this.hemi.intensity = 0.7 + 0.3 * up;
+    this.renderer.toneMappingExposure = 1.05 * (0.9 + 0.15 * up);
+    this.sea.setSun(this.skyDome.sunDir, sunColor(hour), low);
   }
 
   applySurfer(surfer: Surfer): void {
@@ -171,6 +189,8 @@ export class Game {
     this.conditions = rollConditions();
     this.scheduler.reset(this.conditions);
     this.sea.patches.clear();
+    this.lens.clear();
+    this.applyLight();
     this.lips.setConditions(this.conditions);
     this.t = 0;
     this.score = 0;
@@ -220,11 +240,15 @@ export class Game {
       z: 0.04 * this.conditions.windZ,
     });
     this.skyDome.update(this.t);
-    this.lips.update(this.scheduler.waves, this.t, this.spot, dt);
+    this.lips.update(this.scheduler.waves, this.t, this.spot, dt, this.camPos);
+    if (this.lips.lensHits > 0) this.lens.splash(Math.min(4, this.lips.lensHits));
     this.placeRig();
     this.updateHints();
     this.updateCamera(dt);
+    this.sea.setCamera(this.camera);
+    this.lens.update(dt);
     this.renderer.render(this.scene, this.camera);
+    this.lens.draw();
     input.endFrame();
   }
 
@@ -378,6 +402,7 @@ export class Game {
 
   private endRide(reason: EndReason, wave: Wave): void {
     const wipeout = WIPEOUTS.includes(reason);
+    if (wipeout) this.lens.splash(9, true);
     const points = reason === 'peak' ? 0 : Math.round((this.ride?.points ?? 0) * 10 * (wipeout ? 0.5 : 1));
     this.score += points;
     this.fatigue = Math.min(1, this.fatigue + (wipeout ? 0.3 : 0.1));

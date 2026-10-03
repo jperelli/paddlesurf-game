@@ -91,6 +91,10 @@ export class Sea {
   private thinAttr: Float32Array;
   private timeUniform = { value: 0 };
   private shallowUniform = { value: new THREE.Color() };
+  private sunViewUniform = { value: new THREE.Vector3(0, 1, 0) };
+  private glareColorUniform = { value: new THREE.Color(0xffffff) };
+  private glareUniform = { value: 1 };
+  private readonly sunDir = new THREE.Vector3(0, 1, 0);
   private sssUniform = { value: new THREE.Color() };
   private nx: number;
   private nz: number;
@@ -155,6 +159,9 @@ export class Sea {
       shader.uniforms.foamMap = { value: foamNoiseMap() };
       shader.uniforms.shallowColor = this.shallowUniform;
       shader.uniforms.sssColor = this.sssUniform;
+      shader.uniforms.uSunView = this.sunViewUniform;
+      shader.uniforms.uGlareColor = this.glareColorUniform;
+      shader.uniforms.uGlare = this.glareUniform;
       shader.vertexShader = shader.vertexShader
         .replace(
           '#include <common>',
@@ -164,7 +171,22 @@ export class Sea {
       shader.fragmentShader = shader.fragmentShader
         .replace(
           '#include <common>',
-          '#include <common>\nuniform float uTime;\nuniform sampler2D foamMap;\nuniform vec3 shallowColor;\nuniform vec3 sssColor;\nvarying float vFoam;\nvarying float vThin;\nvarying float vDepth;',
+          '#include <common>\nuniform float uTime;\nuniform sampler2D foamMap;\nuniform vec3 shallowColor;\nuniform vec3 sssColor;\nuniform vec3 uSunView;\nuniform vec3 uGlareColor;\nuniform float uGlare;\nvarying float vFoam;\nvarying float vThin;\nvarying float vDepth;',
+        )
+        .replace(
+          '#include <emissivemap_fragment>',
+          `#include <emissivemap_fragment>
+	{
+		// Sun glare streak: the mirror direction near the sun, stretched vertically on screen the way a
+		// glitter path runs up the water towards the sun, and broken up by the ripple noise.
+		vec3 rv = reflect( -normalize( vViewPosition ), normal );
+		vec3 sd = normalize( uSunView );
+		float dh = rv.x - sd.x;
+		float dv = rv.y - sd.y;
+		float st = exp( -( dh * dh * 110.0 + dv * dv * 5.0 ) ) * step( 0.0, dot( rv, sd ) );
+		float sparkle = texture2D( foamMap, vNormalMapUv * 9.0 + uTime * vec2( 0.07, -0.04 ) ).r;
+		totalEmissiveRadiance += uGlareColor * st * uGlare * ( 0.5 + 0.9 * sparkle ) * ( 1.0 - vFoam );
+	}`,
         )
         .replace(
           '#include <color_fragment>',
@@ -200,6 +222,18 @@ export class Sea {
     this.far = new THREE.Mesh(farGeo, new THREE.MeshStandardMaterial({ color: palette.deep, roughness: 0.3 }));
     this.far.position.set(0, -0.3, Z_MIN - 598);
     this.setPalette(palette);
+  }
+
+  /** World-space sun direction and colour; low sun gives a longer, stronger streak. */
+  setSun(dir: THREE.Vector3, color: THREE.Color, low: number): void {
+    this.sunDir.copy(dir);
+    this.glareColorUniform.value.copy(color);
+    this.glareUniform.value = 0.5 + 1.3 * low;
+  }
+
+  /** Per frame: the glare is computed in view space. */
+  setCamera(camera: THREE.Camera): void {
+    this.sunViewUniform.value.copy(this.sunDir).transformDirection(camera.matrixWorldInverse);
   }
 
   setPalette(p: WaterPalette): void {

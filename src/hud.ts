@@ -22,7 +22,7 @@ export interface HudState {
 }
 
 export class Hud {
-  private root: HTMLElement;
+  readonly root: HTMLElement;
   private phaseEl: HTMLElement;
   private setEl: HTMLElement;
   private msgEl: HTMLElement;
@@ -41,6 +41,7 @@ export class Hud {
   constructor(root: HTMLElement) {
     this.root = root;
     root.innerHTML = `
+      <canvas id="hud-lens"></canvas>
       <div class="panel top-left">
         <div class="row"><span id="hud-phase" class="phase"></span><span id="hud-who" class="who"></span></div>
         <div id="hud-set" class="set"></div>

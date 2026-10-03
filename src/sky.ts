@@ -2,9 +2,28 @@ import * as THREE from 'three';
 import type { WaterPalette } from './palette';
 import { tileableFbm } from './noise';
 
-// Afternoon sun off to the right and a little in front, so its glitter path runs across the lineup.
-const SUN_ELEVATION = 32;
-const SUN_AZIMUTH = 140;
+// The sun tracks across the day from the left-front to the right-front of the lineup so its glitter
+// path always lies somewhere across the water; low sun is warm and long, midday is high and white.
+const SUN_AZIMUTH = 160;
+const WARM_SUN = new THREE.Color(0xffa258);
+const WHITE_SUN = new THREE.Color(0xfff1d6);
+
+/** Sun elevation (degrees) for a local hour: rises at 6, peaks around 12:30, sets at 19. */
+export function sunElevation(hour: number): number {
+  const d = Math.min(1, Math.max(0, (hour - 6) / 13));
+  return 5 + 60 * Math.sin(Math.PI * d);
+}
+
+/** 0 at a high sun, 1 when it is on the horizon: how warm and long the light is. */
+export function sunLow(hour: number): number {
+  const e = sunElevation(hour);
+  const t = Math.min(1, Math.max(0, (e - 5) / 28));
+  return 1 - t * t * (3 - 2 * t);
+}
+
+export function sunColor(hour: number, out = new THREE.Color()): THREE.Color {
+  return out.copy(WHITE_SUN).lerp(WARM_SUN, sunLow(hour));
+}
 
 const SKY_VERT = /* glsl */ `
 varying vec3 vDir;
@@ -106,9 +125,7 @@ export class SkyDome {
 
   constructor(renderer: THREE.WebGLRenderer) {
     this.pmrem = new THREE.PMREMGenerator(renderer);
-    const phi = THREE.MathUtils.degToRad(90 - SUN_ELEVATION);
-    const theta = THREE.MathUtils.degToRad(SUN_AZIMUTH);
-    this.sunDir.setFromSphericalCoords(1, phi, theta);
+    this.setHour(12.5);
 
     this.skyMat = new THREE.ShaderMaterial({
       uniforms: {
@@ -153,22 +170,39 @@ export class SkyDome {
     this.cloudMat.uniforms.uTime.value = t;
   }
 
-  apply(p: WaterPalette, scene: THREE.Scene, sun: THREE.DirectionalLight): void {
+  private setHour(hour: number): void {
+    const d = Math.min(1, Math.max(0, (hour - 6) / 13));
+    const phi = THREE.MathUtils.degToRad(90 - sunElevation(hour));
+    const theta = THREE.MathUtils.degToRad(SUN_AZIMUTH + 110 * (d - 0.5));
+    this.sunDir.setFromSphericalCoords(1, phi, theta);
+  }
+
+  apply(p: WaterPalette, scene: THREE.Scene, sun: THREE.DirectionalLight, hour: number): void {
+    this.setHour(hour);
+    const low = sunLow(hour);
     const c = new THREE.Color(p.sky);
     const hsl = { h: 0, s: 0, l: 0 };
     c.getHSL(hsl);
     // Greyer reference skies read as hazier air: paler horizon, flatter gradient, more cloud.
     const haze = 1 - hsl.s;
     this.horizon.copy(c).lerp(new THREE.Color(0xf4f6f7), 0.45 + 0.3 * haze);
+    // Low sun: the horizon goes warm and the zenith deepens; clouds catch the colour underneath.
+    this.horizon.lerp(new THREE.Color(0xf6c48e), 0.55 * low);
     const u = this.skyMat.uniforms;
-    (u.uZenith.value as THREE.Color).copy(c).lerp(new THREE.Color(0x2f62a8), 0.45 - 0.25 * haze);
+    (u.uZenith.value as THREE.Color)
+      .copy(c)
+      .lerp(new THREE.Color(0x2f62a8), 0.45 - 0.25 * haze)
+      .lerp(new THREE.Color(0x24446f), 0.4 * low);
     (u.uHorizon.value as THREE.Color).copy(this.horizon);
+    (u.uSunColor.value as THREE.Color).copy(sunColor(hour));
     u.uHaze.value = haze;
     this.cloudMat.uniforms.uOpacity.value = 0.55 + 0.4 * haze;
-    (this.cloudMat.uniforms.uShade.value as THREE.Color).set(0x9aa3ad).lerp(c, 0.3);
+    (this.cloudMat.uniforms.uShade.value as THREE.Color).set(0x9aa3ad).lerp(c, 0.3).lerp(new THREE.Color(0xd98a5a), 0.5 * low);
+    (this.cloudMat.uniforms.uColor.value as THREE.Color).set(0xffffff).lerp(new THREE.Color(0xffd2b0), 0.6 * low);
 
     sun.position.copy(this.sunDir).multiplyScalar(200);
-    sun.color.set(0xffffff).lerp(new THREE.Color(0xffd9a8), 0.4);
+    sun.color.set(0xffffff).lerp(new THREE.Color(0xffd9a8), 0.4).lerp(WARM_SUN, 0.6 * low);
+    sun.intensity = 1.7 * (0.5 + 0.5 * Math.sin(THREE.MathUtils.degToRad(sunElevation(hour))));
 
     this.envScene.add(this.dome);
     this.envTarget?.dispose();

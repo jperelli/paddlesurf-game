@@ -20,6 +20,8 @@ export interface Conditions {
   /** Where in the tidal cycle the session starts (radians). */
   tidePhase: number;
   swell2: SecondSwell | null;
+  /** Local time of day the session starts (hours, 7 to 19). */
+  hour: number;
 }
 
 /** Tide period (s): short enough that the tide visibly moves during one session. */
@@ -80,7 +82,8 @@ export function rollConditions(): Conditions {
           period: rand(7, 11),
         }
       : null;
-  return { angle, current, windX, windZ, tidePhase: rand(0, 2 * Math.PI), swell2 };
+  const hour = rand(7, 19);
+  return { angle, current, windX, windZ, tidePhase: rand(0, 2 * Math.PI), swell2, hour };
 }
 
 export function windSpeed(c: Conditions): number {
@@ -89,6 +92,10 @@ export function windSpeed(c: Conditions): number {
 
 export function describeConditions(c: Conditions): string {
   const parts: string[] = [];
+  const h = Math.floor(c.hour);
+  const m = Math.floor((c.hour - h) * 60);
+  const when = c.hour < 10 ? 'early light' : c.hour < 16 ? 'high sun' : 'evening light';
+  parts.push(`${h}:${m < 10 ? '0' : ''}${m}, ${when}`);
   const ws = windSpeed(c);
   if (ws < 1) parts.push('glassy, no wind');
   else {
