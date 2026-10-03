@@ -1,4 +1,5 @@
 import type { Game } from './game';
+import { isSaved, saveQuality } from './quality';
 import { KEY_LABELS, SURFER_KEYS, WATER_KEYS, type PaletteKey, type SurferPalette, type WaterPalette } from './palette';
 import { resetRoster, saveRoster, type Roster } from './roster';
 
@@ -36,6 +37,11 @@ export class SettingsPanel {
           <label>Waves per set (min) <input id="st-setmin" type="number" step="1" min="1" max="12" /></label>
           <label>Waves per set (max) <input id="st-setmax" type="number" step="1" min="1" max="12" /></label>
         </div>
+      </section>
+      <section>
+        <h3>Graphics</h3>
+        <label>Quality <select id="st-quality"><option value="high">High: full water detail, all the spray</option><option value="low">Low: smoother on phones</option></select></label>
+        <p class="small" id="st-quality-note"></p>
       </section>
       <section>
         <h3>Colours</h3>
@@ -78,6 +84,18 @@ export class SettingsPanel {
 
   private bind(): void {
     this.q('#st-close').onclick = () => this.toggle(false);
+    const qsel = this.q<HTMLSelectElement>('#st-quality');
+    qsel.value = this.game.quality;
+    this.q('#st-quality-note').textContent = isSaved()
+      ? `Using ${this.game.quality} quality.`
+      : `Picked ${this.game.quality} for this device. Changing it reloads the page (your spot, conditions and session code are kept in the link).`;
+    qsel.onchange = () => {
+      const v = qsel.value === 'low' ? 'low' : 'high';
+      saveQuality(v);
+      const u = new URL(location.href);
+      u.searchParams.delete('q');
+      location.href = u.toString();
+    };
     this.q<HTMLSelectElement>('#st-surfer').onchange = (e) => {
       this.roster.surferIndex = Number((e.target as HTMLSelectElement).value);
       this.apply();

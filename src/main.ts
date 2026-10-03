@@ -4,6 +4,7 @@ import { Hud } from './hud';
 import { describeSpot, loadRoster, saveRoster } from './roster';
 import { PRESETS, type Preset } from './conditions';
 import { newSessionCode, normalizeCode } from './rng';
+import { loadQuality } from './quality';
 import { SettingsPanel } from './settings';
 import { TouchControls } from './touch';
 
@@ -20,7 +21,7 @@ if (linkSpot !== null) {
   if (i >= 0) roster.spotIndex = i;
 }
 const hud = new Hud(document.querySelector<HTMLElement>('#hud')!);
-const game = new Game(canvas, roster.spots[roster.spotIndex], roster.surfers[roster.surferIndex], hud);
+const game = new Game(canvas, roster.spots[roster.spotIndex], roster.surfers[roster.surferIndex], hud, loadQuality());
 const linkCond = params.get('cond');
 if (linkCond && PRESETS.some((p) => p.id === linkCond)) game.preset = linkCond as Preset;
 const linkSeed = params.get('seed');

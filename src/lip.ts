@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import type { Quality } from './quality';
 import {
   CURL_WIDTH,
   brokenAmount,
@@ -21,6 +22,8 @@ const STRIP_LEN = CURL_WIDTH + 6;
 const POOL = 4;
 const SPRAY_N = 1600;
 const MIST_N = 2600;
+const SPRAY_N_LOW = 700;
+const MIST_N_LOW = 1100;
 /** How many crest samples either side of the pocket shed wind spray. */
 const WIND_STRIP = 14;
 
@@ -162,13 +165,16 @@ export class Lips {
   private pt: SeaPoint = { y: 0, z: 0 };
 
   /** Coarse spray where the lip lands. */
-  private spray = new SprayPool(SPRAY_N, 3.4, 0.95);
+  private spray: SprayPool;
   /** Fine spindrift torn off the crest by the wind. */
-  private mist = new SprayPool(MIST_N, 2.2, 0.8);
+  private mist: SprayPool;
   private wind = { x: 0, z: 0 };
   private windAcc = 0;
 
-  constructor(palette: WaterPalette) {
+  constructor(palette: WaterPalette, quality: Quality = 'high') {
+    const low = quality === 'low';
+    this.spray = new SprayPool(low ? SPRAY_N_LOW : SPRAY_N, 3.4, 0.95);
+    this.mist = new SprayPool(low ? MIST_N_LOW : MIST_N, 2.2, 0.8);
     this.material = new THREE.MeshStandardMaterial({
       vertexColors: true,
       side: THREE.DoubleSide,

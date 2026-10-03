@@ -24,6 +24,7 @@ import type { Spot, Surfer } from './roster';
 import type { Hud } from './hud';
 import { describeConditions, rollConditions, tideRising, type Conditions, type Preset } from './conditions';
 import { newSessionCode, seedRng } from './rng';
+import type { Quality } from './quality';
 import { LensDrops } from './lens';
 import { sunColor, sunElevation, sunLow } from './sky';
 
@@ -100,15 +101,18 @@ export class Game {
   private hud: Hud;
   private lens: LensDrops;
 
-  constructor(canvas: HTMLCanvasElement, spot: Spot, surfer: Surfer, hud: Hud) {
+  readonly quality: Quality;
+
+  constructor(canvas: HTMLCanvasElement, spot: Spot, surfer: Surfer, hud: Hud, quality: Quality = 'high') {
+    this.quality = quality;
     this.hud = hud;
     const lensCanvas = hud.root.querySelector<HTMLCanvasElement>('#hud-lens');
     if (!lensCanvas) throw new Error('lens canvas missing');
     this.lens = new LensDrops(lensCanvas);
     this.spot = spot;
     this.surfer = surfer;
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: quality === 'high' });
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, quality === 'high' ? 2 : 1.25));
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.05;
     this.camera = new THREE.PerspectiveCamera(55, 1, 0.1, 400);
@@ -121,9 +125,9 @@ export class Game {
     this.skyDome = new SkyDome(this.renderer);
     this.scene.add(this.wake.group);
 
-    this.sea = new Sea(spot.water);
+    this.sea = new Sea(spot.water, quality);
     this.scene.add(this.sea.mesh, this.sea.beach, this.sea.far);
-    this.lips = new Lips(spot.water);
+    this.lips = new Lips(spot.water, quality);
     this.scene.add(this.lips.group);
     this.scheduler = new WaveScheduler(spot, this.conditions);
     this.lips.setConditions(this.conditions);

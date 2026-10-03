@@ -4,12 +4,12 @@ import type { WaterPalette } from './palette';
 import { WAKE_LIFE, type WakePoint } from './wake';
 import { tileableFbm } from './noise';
 import { FoamField } from './foam';
+import type { Quality } from './quality';
 
 const X_MIN = -90;
 const X_MAX = 90;
 const Z_MIN = -100;
 const Z_MAX = BEACH_Z + 10;
-const STEP = 1;
 const UV_SCALE = 1 / 6;
 
 /** Tileable greyscale bubble/streak pattern that breaks up the foam colour. */
@@ -79,6 +79,13 @@ const RIPPLE_NORMALS = /* glsl */ `
 	float rippleFade = clamp( 1.0 - length( vViewPosition ) / 110.0, 0.08, 1.0 ) * ( 1.0 - 0.8 * vFoam );
 	mapN.xy *= rippleFade;`;
 
+const RIPPLE_NORMALS_LOW = /* glsl */ `
+	vec2 uvA = vNormalMapUv + vec2( 0.021, 0.034 ) * uTime;
+	vec3 nA = texture2D( normalMap, uvA ).xyz * 2.0 - 1.0;
+	vec3 mapN = normalize( vec3( 1.1 * nA.xy, nA.z ) );
+	float rippleFade = clamp( 1.0 - length( vViewPosition ) / 110.0, 0.08, 1.0 ) * ( 1.0 - 0.8 * vFoam );
+	mapN.xy *= rippleFade;`;
+
 export class Sea {
   readonly mesh: THREE.Mesh;
   readonly beach: THREE.Mesh;
@@ -106,8 +113,11 @@ export class Sea {
   private tmp = new THREE.Color();
   /** Foam patches left by earlier waves, drifting with current and wind. */
   readonly patches = new FoamField(X_MIN, X_MAX, Z_MIN, Z_MAX);
+  private readonly step: number;
 
-  constructor(palette: WaterPalette) {
+  constructor(palette: WaterPalette, quality: Quality = 'high') {
+    const STEP = quality === 'low' ? 2 : 1;
+    this.step = STEP;
     this.nx = Math.round((X_MAX - X_MIN) / STEP) + 1;
     this.nz = Math.round((Z_MAX - Z_MIN) / STEP) + 1;
     const n = this.nx * this.nz;
@@ -205,7 +215,7 @@ export class Sea {
 	float thin = vFoam * ( 0.35 + 0.65 * ( 1.0 - vFoam ) );
 	diffuseColor.rgb *= mix( 1.0, 0.62 + 0.38 * foamPat, thin );`,
         )
-        .replace('vec3 mapN = texture2D( normalMap, vNormalMapUv ).xyz * 2.0 - 1.0;', RIPPLE_NORMALS)
+        .replace('vec3 mapN = texture2D( normalMap, vNormalMapUv ).xyz * 2.0 - 1.0;', quality === 'low' ? RIPPLE_NORMALS_LOW : RIPPLE_NORMALS)
         .replace('float roughnessFactor = roughness;', 'float roughnessFactor = mix( roughness, 0.95, vFoam );');
     };
     this.mesh = new THREE.Mesh(this.geometry, material);
@@ -280,7 +290,7 @@ export class Sea {
     const skews = waves.map((w) => crestSkew(w, X_MAX));
     const active: number[] = [];
     for (let j = 0; j < nz; j++) {
-      const z = Z_MIN + j * STEP;
+      const z = Z_MIN + j * this.step;
       active.length = 0;
       for (let wi = 0; wi < waves.length; wi++) {
         const d = z - czs[wi];
@@ -290,7 +300,7 @@ export class Sea {
       }
       const shoreFoam = z > 42 ? Math.min(0.6, (z - 42) / 25) : 0;
       for (let i = 0; i < nx; i++) {
-        const x = X_MIN + i * STEP;
+        const x = X_MIN + i * this.step;
         const k = (j * nx + i) * 3;
         let h = chopAt(x, z, t);
         let zz = z;
