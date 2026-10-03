@@ -192,6 +192,17 @@ export function lipDistance(w: Wave, x: number, t: number, spot: SpotConfig): nu
   return best;
 }
 
+/** Seconds since the whitewater reached x (negative: not broken there yet, -Infinity: no fronts). */
+export function brokenAge(w: Wave, x: number, t: number, spot: SpotConfig): number {
+  let best = -Infinity;
+  for (const f of w.fronts) {
+    const d = f.dir === 0 ? Math.abs(x - f.x) : (x - f.x) * f.dir;
+    const age = t - f.startT - Math.max(0, d) / spot.peelSpeed;
+    if (age > best) best = age;
+  }
+  return best;
+}
+
 /** 0 = green face, 1 = whitewater. Soft, ragged edge a couple of metres wide. */
 export function brokenAmount(w: Wave, x: number, t: number, spot: SpotConfig): number {
   let best = 0;

@@ -54,7 +54,7 @@ export class SettingsPanel {
       </section>
       <section>
         <h3>Gameplay</h3>
-        <label><input id="st-hints" type="checkbox" /> Show peak and pocket hints (red cone = peak, green = pockets; H toggles them in the water)</label>
+        <label><input id="st-hints" type="checkbox" /> Show the subtle peak and pocket hints (red = peak, green = pockets; H toggles them)</label>
       </section>
       <section>
         <h3>Graphics</h3>

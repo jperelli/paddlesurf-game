@@ -17,7 +17,8 @@ Open the printed URL, press any key and paddle out.
 
 1. **Waiting for the wave.** Waves come in sets: 3 to 7 small ones, then a set of 4 or 5 that grow and then shrink again (with some randomness). Each set wave has a **peak** (where it breaks first) and two **pockets** on either side of the breaking section. Paddle with the arrow keys, hold `Space` for power strokes. Power strokes fill the tiredness bar and get slower the more tired you are. When the crest reaches you:
    - in a pocket and not paddling into the peak: you are on, go to 2
-   - on the peak: the lip lands on you, wipeout
+   - in the impact zone (under the lip or in fresh whitewater): wipeout if you sit still, are sideways to it, or the foam is too high; low fresh foam can be punched through by paddling straight out into it, and after a few seconds the foam has dissipated and rolls under you harmlessly
+   - sitting still in the pocket as it arrives also throws you
    - anywhere else: the wave passes under you
 2. **Riding.** The wave peels away from the peak and you ride away from the lip. `←`/`→` steer along the face (toward the lip or down to the trough). `↑`/`↓` step forward or back on the board: back foot = slower but turns much faster, front foot = slower and turns less, centre = fastest.
 3. **End of the wave.** Either a section closes out in front of you (or the foam catches you from behind), you climb over the back, or the wave fades out near the shore with no push left. Points depend on wave size, time on the face and how high in the pocket you ride.
@@ -25,7 +26,7 @@ Open the printed URL, press any key and paddle out.
 
 On phones and tablets an on-screen joystick (drag the knob, diagonals work), POWER button and Hints/Settings buttons replace the keyboard; tap the screen to start or paddle back out.
 
-Peak/pocket markers are off by default; turn them on in Settings > Gameplay (or press `H`) to see them as learning hints (red cone = peak, green bars = the two pockets). The water is clear enough to see the sand bottom: about 2 m deep out the back, ramping up to the beach. `Esc` opens settings.
+Subtle peak/pocket hints (small red cone = peak, faint green bars = the two pockets) are on by default; Settings > Gameplay or `H` hides them. The water is clear enough to see the sand bottom: about 2 m deep out the back, ramping up to the beach. `Esc` opens settings.
 
 ## Look
 

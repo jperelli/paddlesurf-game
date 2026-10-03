@@ -108,7 +108,6 @@ function frame(now: number): void {
       score: game.score,
       caught: game.caught,
       setLabel: game.phase === 'start' ? '' : game.setLabel(),
-      hint: game.hint,
       surfer: game.surfer.name,
       spot: game.spot.name,
       ridePoints: game.ride?.points ?? 0,

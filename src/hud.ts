@@ -16,7 +16,6 @@ export interface HudState {
   score: number;
   caught: number;
   setLabel: string;
-  hint: boolean;
   surfer: string;
   spot: string;
   ridePoints: number;
@@ -32,7 +31,6 @@ export class Hud {
   private scoreEl: HTMLElement;
   private caughtEl: HTMLElement;
   private rideEl: HTMLElement;
-  private hintEl: HTMLElement;
   private whoEl: HTMLElement;
   private endCard: HTMLElement;
   private startCard: HTMLElement;
@@ -45,6 +43,10 @@ export class Hud {
   private boardCard: HTMLElement;
   private board: Leaderboard;
   private playerName = '';
+  /** Set once a name was typed this page load; later runs save under it without asking again. */
+  private nameGiven = false;
+  /** True when the end card needs no input, so the game can paddle back out on its own. */
+  quickRestart = false;
   /** True while the end card is asking for a name; "any key" must not paddle out yet. */
   awaitingName = false;
 
@@ -61,7 +63,6 @@ export class Hud {
           <span class="stance"><i data-s="-1"></i><i data-s="0"></i><i data-s="1"></i></span>
           <span class="label small">back · centre · front</span></div>
         <div class="row"><span>Score <b id="hud-score">0</b></span><span>Waves <b id="hud-caught">0</b></span><span id="hud-ride"></span></div>
-        <div id="hud-hint" class="label small"></div>
       </div>
       <div id="hud-msg" class="msg"></div>
       <div id="hud-end" class="card hidden"></div>
@@ -100,7 +101,6 @@ export class Hud {
     this.scoreEl = q('#hud-score');
     this.caughtEl = q('#hud-caught');
     this.rideEl = q('#hud-ride');
-    this.hintEl = q('#hud-hint');
     this.whoEl = q('#hud-who');
     this.endCard = q('#hud-end');
     this.startCard = q('#hud-start');
@@ -195,7 +195,6 @@ export class Hud {
     this.scoreEl.textContent = String(s.score);
     this.caughtEl.textContent = String(s.caught);
     this.rideEl.textContent = s.phase === 'riding' ? `+${Math.round(s.ridePoints * 10)}` : '';
-    this.hintEl.textContent = s.hint ? 'Hints on (H): red = peak, green = pockets' : '';
     this.startCard.classList.toggle('hidden', s.phase !== 'start');
     if (this.msgTimer && now > this.msgTimer) {
       this.msgEl.classList.remove('show');
@@ -221,6 +220,18 @@ export class Hud {
     if (!run) {
       this.endCard.appendChild(go);
       this.endCard.classList.remove('hidden');
+      return;
+    }
+    if (this.nameGiven) {
+      const p = document.createElement('p');
+      p.className = 'run';
+      p.textContent = `Run over: ${run.waves} wave${run.waves === 1 ? '' : 's'} · ${run.points} points`;
+      this.endCard.appendChild(p);
+      if (run.waves > 0) submitScore(this.playerName, run).catch(() => undefined);
+      go.textContent = 'Paddling back out';
+      this.endCard.appendChild(go);
+      this.endCard.classList.remove('hidden');
+      this.quickRestart = true;
       return;
     }
     this.awaitingName = true;
@@ -256,6 +267,7 @@ export class Hud {
         return;
       }
       this.playerName = name;
+      this.nameGiven = true;
       savePlayerName(name);
       note.textContent = 'Saving…';
       for (const b of form.querySelectorAll('button')) b.disabled = true;
@@ -274,6 +286,7 @@ export class Hud {
 
   hideEnd(): void {
     this.awaitingName = false;
+    this.quickRestart = false;
     this.endCard.classList.add('hidden');
   }
 

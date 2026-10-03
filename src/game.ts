@@ -13,6 +13,7 @@ import {
   brokenHalfWidth,
   crestZAt,
   faceLength,
+  brokenAge,
   localHeight,
   peelLabel,
   pocketOffset,
@@ -36,6 +37,10 @@ export const POCKET_WIDTH = 6;
 const LINEUP_Z = -2;
 const WIPEOUTS: EndReason[] = ['peak', 'closeout', 'caught'];
 const HINTS_KEY = 'paddlesurf.hints';
+/** Seconds after breaking by which whitewater has dissipated enough to roll under you harmlessly. */
+const FOAM_SOFT_AGE = 4;
+/** Whitewater (m) low enough to punch through by paddling straight out into it. */
+const FOAM_PUNCH_HEIGHT = 1.1;
 
 interface Ride {
   wave: Wave;
@@ -80,8 +85,8 @@ export class Game {
   seed = newSessionCode();
   spot: Spot;
   surfer: Surfer;
-  /** Peak/pocket markers: off unless turned on in Settings or with H. */
-  hint = localStorage.getItem(HINTS_KEY) === '1';
+  /** Subtle peak/pocket markers, on unless turned off in Settings or with H. */
+  hint = localStorage.getItem(HINTS_KEY) !== '0';
 
   x = 0;
   z = LINEUP_Z;
@@ -141,12 +146,12 @@ export class Game {
     this.scene.add(this.rig.group);
 
     this.peakMarker = new THREE.Mesh(
-      new THREE.ConeGeometry(0.6, 1.4, 12),
-      new THREE.MeshBasicMaterial({ color: 0xe04040, transparent: true, opacity: 0.85 }),
+      new THREE.ConeGeometry(0.3, 0.7, 10),
+      new THREE.MeshBasicMaterial({ color: 0xe04040, transparent: true, opacity: 0.4, depthWrite: false }),
     );
     this.peakMarker.rotation.x = Math.PI;
-    const pocketGeo = new THREE.BoxGeometry(POCKET_WIDTH, 0.25, 1.2);
-    const pocketMat = new THREE.MeshBasicMaterial({ color: 0x40e070, transparent: true, opacity: 0.7 });
+    const pocketGeo = new THREE.BoxGeometry(POCKET_WIDTH, 0.06, 0.6);
+    const pocketMat = new THREE.MeshBasicMaterial({ color: 0x40e070, transparent: true, opacity: 0.3, depthWrite: false });
     this.pocketMarkers = [new THREE.Mesh(pocketGeo, pocketMat), new THREE.Mesh(pocketGeo, pocketMat)];
     this.hintGroup.add(this.peakMarker, ...this.pocketMarkers);
     this.scene.add(this.hintGroup);
@@ -333,16 +338,38 @@ export class Game {
     const off = pocketOffset(w, this.x, t, this.spot);
     const dx = this.x - w.peakX;
     const side: 1 | -1 = w.peel !== 0 ? w.peel : dx >= 0 ? 1 : -1;
+    const speed = Math.hypot(this.vx, this.vz);
+    const stopped = speed < 0.4;
     if (off < 1.2) {
-      if (w.peel !== 0 && dx * w.peel < -1.2) {
-        this.hud.flash(`Wrong side: this one only goes ${w.peel === 1 ? 'right' : 'left'}. The whitewater got you.`);
-      } else {
-        this.hud.flash('Right under the peak. The lip landed on you.');
+      // In the impact zone: under the lip at the peak, or in the whitewater behind it.
+      const broken = brokenAmount(w, this.x, t, this.spot);
+      const foamAge = broken > 0.5 ? brokenAge(w, this.x, t, this.spot) : 0;
+      const foamHeight = h * (1 - 0.35 * broken);
+      const paddlingOut = this.vz < -0.6 && Math.abs(this.vx) < -this.vz;
+      if (broken > 0.5 && foamAge > FOAM_SOFT_AGE) {
+        this.hud.flash('Old foam, it just rolled under you.');
+        return;
       }
+      if (broken > 0.5 && paddlingOut && foamHeight < FOAM_PUNCH_HEIGHT) {
+        this.hud.flash('Punched through the foam.');
+        this.vz += 1.2 + foamHeight;
+        this.fatigue = Math.min(1, this.fatigue + 0.06);
+        this.lens.splash(3, false);
+        return;
+      }
+      if (stopped) this.hud.flash('Sitting still when it broke on you.');
+      else if (Math.abs(this.vx) > Math.abs(this.vz)) this.hud.flash('Sideways in the impact zone. Over you go.');
+      else if (broken > 0.5) this.hud.flash('Too much foam to punch through.');
+      else this.hud.flash('Right under the peak. The lip landed on you.');
       this.endRide('peak', w);
       return;
     }
     if (off < POCKET_WIDTH) {
+      if (stopped) {
+        this.hud.flash('Sitting still as the pocket arrived. It threw you.');
+        this.endRide('peak', w);
+        return;
+      }
       if (this.vx * side < -0.8) {
         this.hud.flash('In the pocket but paddling into the peak. Wave lost.');
         return;
@@ -454,7 +481,7 @@ export class Game {
       this.vz = Math.max(0, this.vz - 3 * dt);
       this.z += this.vz * dt;
     }
-    if (age > 1.2 && !this.hud.awaitingName && this.input.anyPressed()) this.resetToLineup();
+    if (age > 1.2 && !this.hud.awaitingName && (this.input.anyPressed() || (this.hud.quickRestart && age > 2.5))) this.resetToLineup();
   }
 
   private resetToLineup(): void {
@@ -536,7 +563,7 @@ export class Game {
       return;
     }
     const half = brokenHalfWidth(w, this.t, this.spot);
-    const topY = localHeight(w, w.peakX, this.t) + 1.2;
+    const topY = localHeight(w, w.peakX, this.t) + 0.7;
     this.peakMarker.position.set(w.peakX, topY, crestZAt(w, w.peakX, this.t));
     for (let i = 0; i < 2; i++) {
       const side = i === 0 ? 1 : -1;
