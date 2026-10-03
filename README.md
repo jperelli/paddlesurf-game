@@ -43,6 +43,8 @@ Pick the spot on the start screen (or in settings):
 - **Chicama, Peru**: colours from the second photo (teal water, blue sky), waves twice the size (1.8–2.6 m), lulls of 1–2 small waves then long sets of 8–10. Every wave peels right only: everything on the left of the peak is whitewater, the only pocket is on the right.
 - **Praia do Rosa, Brazil** (Imbituba, Santa Catarina): characteristics from surf guides (brazilsurftravel.com, wannasurf.com, wavemasterai.com.br): sandy beach break, rights and lefts, 0.5–2.5 m, fast and powerful with quick sections and barrel potential, very consistent; the lefts at Rosa Norte are the longer, hollower ones. In the game: 1.2–2.0 m, lulls of 3–6 then sets of 4–7, peels fast, more sections/closeouts, 30% A-frames / 30% rights only / 40% lefts only. Water colours sampled from the Wikimedia Commons photo "Praia do Rosa Norte.jpg" (grey-teal water, clear blue sky, pale sand).
 
+A run is everything you catch until you fall (peak, closeout or the foam). When you fall, the card asks for your name and sends the run (waves and points) to the leaderboard, which has Today / This week / This month / All time tabs (also behind "High scores" on the start screen). Scores are stored in SQLite by `server/index.mjs`, a small Node server (no dependencies, `node:sqlite`) that also serves the built game: `npm run build && npm start` (env `PORT`, `DB_PATH`, default `./data/scores.db`); in development `npm run server` next to `npm run dev`, Vite proxies `/api`. The Dockerfile runs it on port 80 with the database on a `/data` volume.
+
 Each surfer also picks a look in settings: one of three faces (or a photo of your own face, mapped onto the head), body shapes, boards and paddles (`src/looks.ts`). Surfers (name + colours) and spots (name, wave height range, how fast it peels, how often it closes out, rights/lefts share, waves per set, water colours) are editable and saved in the browser (`localStorage`). "Reset to defaults" restores the built-in roster in `src/roster.ts`.
 
 ## Code map
@@ -53,7 +55,7 @@ Each surfer also picks a look in settings: one of three faces (or a photo of you
 - `src/sea.ts`: the sea mesh (vertex colours for face / deep water / foam)
 - `src/surfer.ts`: paddler rig (photo-based board deck, crouched riding pose, paddle)
 - `src/game.ts`: the four phases, takeoff rules, ride dynamics, camera
-- `src/hud.ts`, `src/settings.ts`: UI
+- `src/hud.ts`, `src/settings.ts`: UI; `src/scores.ts`: leaderboard client; `server/index.mjs`: static files + `/api/scores` on SQLite
 - `src/palette.ts`, `src/roster.ts`, `src/looks.ts`: colours, the surfer/spot roster and the face/body/board/paddle options
 
 `npm run build` runs `tsc` and produces a static `dist/` you can host anywhere.

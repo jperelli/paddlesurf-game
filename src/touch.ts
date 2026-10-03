@@ -58,7 +58,7 @@ export class TouchControls {
       input.tap();
     };
     canvas.addEventListener('pointerdown', tap);
-    for (const card of hud.querySelectorAll<HTMLElement>('.card')) card.addEventListener('pointerdown', tap);
+    for (const card of hud.querySelectorAll<HTMLElement>('.card:not(.board-card)')) card.addEventListener('pointerdown', tap);
 
     const coarse = window.matchMedia('(pointer: coarse)');
     const apply = () => {

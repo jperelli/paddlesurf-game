@@ -1,4 +1,5 @@
 import type { EndReason } from './game';
+import { Leaderboard, loadPlayerName, savePlayerName, submitScore, type RunResult } from './scores';
 
 const END_TITLES: Record<EndReason, string> = {
   peak: 'Wipeout at the peak',
@@ -40,6 +41,12 @@ export class Hud {
   private seedEl: HTMLInputElement;
   private seedNote: HTMLElement;
   private msgTimer = 0;
+  private endBoard: Leaderboard;
+  private boardCard: HTMLElement;
+  private board: Leaderboard;
+  private playerName = '';
+  /** True while the end card is asking for a name; "any key" must not paddle out yet. */
+  awaitingName = false;
 
   constructor(root: HTMLElement) {
     this.root = root;
@@ -58,8 +65,13 @@ export class Hud {
       </div>
       <div id="hud-msg" class="msg"></div>
       <div id="hud-end" class="card hidden"></div>
+      <div id="hud-board" class="card board-card hidden">
+        <div class="row board-head"><h2>High scores</h2><button id="hud-board-close" class="mini">Close</button></div>
+        <p class="small">Best runs: waves and points in one session without falling.</p>
+        <div id="hud-board-list"></div>
+      </div>
       <div id="hud-start" class="card start">
-        <h1>Paddle Surf</h1>
+        <div class="row start-head"><h1>Paddle Surf</h1><button id="hud-board-open" class="mini">High scores</button></div>
         <div class="label">Spot</div>
         <div id="hud-spots" class="spots"></div>
         <div class="label">Conditions</div>
@@ -96,9 +108,22 @@ export class Hud {
     this.condsEl = q('#hud-conds');
     this.seedEl = root.querySelector<HTMLInputElement>('#hud-seed')!;
     this.seedNote = q('#hud-seed-note');
+    this.boardCard = q('#hud-board');
+    this.board = new Leaderboard(q('#hud-board-list'));
+    this.endBoard = new Leaderboard(document.createElement('div'));
     for (const el of [this.seedEl, q('#hud-seed-new'), q('#hud-seed-copy')]) {
       for (const ev of ['pointerdown', 'click', 'keydown', 'keyup', 'touchstart']) el.addEventListener(ev, (e) => e.stopPropagation());
     }
+    for (const el of [q('#hud-board-open'), this.boardCard]) {
+      for (const ev of ['pointerdown', 'click', 'touchstart']) el.addEventListener(ev, (e) => e.stopPropagation());
+    }
+    q('#hud-board-open').addEventListener('click', () => this.openBoard());
+    q('#hud-board-close').addEventListener('click', () => this.boardCard.classList.add('hidden'));
+  }
+
+  openBoard(): void {
+    this.boardCard.classList.remove('hidden');
+    this.board.show('day', null);
   }
 
   /** Level picker on the start card. Clicks here must not count as "press any key". */
@@ -161,6 +186,8 @@ export class Hud {
     };
     this.phaseEl.textContent = phaseNames[s.phase] ?? s.phase;
     this.whoEl.textContent = `${s.surfer} @ ${s.spot}`;
+    if (!this.playerName) this.playerName = loadPlayerName(s.surfer);
+    if (s.phase !== 'start') this.boardCard.classList.add('hidden');
     this.setEl.textContent = s.setLabel;
     this.fatigueBar.style.width = `${Math.round(s.fatigue * 100)}%`;
     this.fatigueBar.classList.toggle('hot', s.fatigue > 0.7);
@@ -182,16 +209,71 @@ export class Hud {
     this.msgTimer = performance.now() + ms;
   }
 
-  showEnd(reason: EndReason, points: number, rideTime: number): void {
+  /** Wave-over card. A wipeout ends the run: `run` carries its totals and the card asks for a name for the leaderboard. */
+  showEnd(reason: EndReason, points: number, rideTime: number, run: RunResult | null): void {
     const wipe = reason === 'peak' || reason === 'closeout' || reason === 'caught';
     this.endCard.innerHTML = `
       <h2 class="${wipe ? 'bad' : 'good'}">${END_TITLES[reason]}</h2>
-      <p>${rideTime > 0 ? `Ride ${rideTime.toFixed(1)} s · ` : ''}<b>+${points}</b> points</p>
-      <p class="go">Press any key or tap to paddle back out</p>`;
+      <p>${rideTime > 0 ? `Ride ${rideTime.toFixed(1)} s · ` : ''}<b>+${points}</b> points</p>`;
+    const go = document.createElement('p');
+    go.className = 'go';
+    go.textContent = 'Press any key or tap to paddle back out';
+    if (!run) {
+      this.endCard.appendChild(go);
+      this.endCard.classList.remove('hidden');
+      return;
+    }
+    this.awaitingName = true;
+    const form = document.createElement('form');
+    form.className = 'run-form';
+    form.innerHTML = `
+      <p class="run">Run over: <b>${run.waves}</b> wave${run.waves === 1 ? '' : 's'} · <b>${run.points}</b> points without falling</p>
+      <div class="row"><label>Your name <input id="hud-name" maxlength="24" autocomplete="off" spellcheck="false"></label>
+        <button type="submit">Save score</button><button type="button" id="hud-skip" class="mini">Skip</button></div>
+      <p class="small" id="hud-run-note"></p>`;
+    for (const ev of ['pointerdown', 'click', 'keydown', 'keyup', 'touchstart']) form.addEventListener(ev, (e) => e.stopPropagation());
+    const nameEl = form.querySelector<HTMLInputElement>('#hud-name')!;
+    const note = form.querySelector<HTMLElement>('#hud-run-note')!;
+    nameEl.value = this.playerName;
+    const finish = (highlight: number | null, ranks?: Record<string, number>) => {
+      this.awaitingName = false;
+      form.remove();
+      if (ranks) {
+        const p = document.createElement('p');
+        p.className = 'run';
+        p.textContent = `Saved for ${this.playerName}: #${ranks.day} today · #${ranks.week} this week · #${ranks.month} this month · #${ranks.all} all time`;
+        this.endCard.appendChild(p);
+      }
+      this.endCard.appendChild(this.endBoard.root);
+      this.endBoard.show('day', highlight);
+      this.endCard.appendChild(go);
+    };
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const name = nameEl.value.trim().slice(0, 24);
+      if (!name) {
+        nameEl.focus();
+        return;
+      }
+      this.playerName = name;
+      savePlayerName(name);
+      note.textContent = 'Saving…';
+      for (const b of form.querySelectorAll('button')) b.disabled = true;
+      submitScore(name, run)
+        .then((res) => finish(res.id, res.rank))
+        .catch(() => {
+          note.textContent = 'Could not reach the server, score not saved.';
+          for (const b of form.querySelectorAll('button')) b.disabled = false;
+        });
+    });
+    form.querySelector('#hud-skip')!.addEventListener('click', () => finish(null));
+    this.endCard.appendChild(form);
     this.endCard.classList.remove('hidden');
+    setTimeout(() => nameEl.focus(), 50);
   }
 
   hideEnd(): void {
+    this.awaitingName = false;
     this.endCard.classList.add('hidden');
   }
 

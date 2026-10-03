@@ -431,7 +431,8 @@ export class Game {
     this.fatigue = Math.min(1, this.fatigue + (wipeout ? 0.3 : 0.1));
     this.end = { reason, points, t: this.t, wave };
     this.phase = 'ended';
-    this.hud.showEnd(reason, points, this.ride?.time ?? 0);
+    const run = wipeout ? { waves: this.caught, points: this.score, spot: this.spot.name, seed: this.seed } : null;
+    this.hud.showEnd(reason, points, this.ride?.time ?? 0, run);
   }
 
   // ---------------------------------------------------------------- phase 3/4
@@ -451,10 +452,14 @@ export class Game {
       this.vz = Math.max(0, this.vz - 3 * dt);
       this.z += this.vz * dt;
     }
-    if (age > 1.2 && this.input.anyPressed()) this.resetToLineup();
+    if (age > 1.2 && !this.hud.awaitingName && this.input.anyPressed()) this.resetToLineup();
   }
 
   private resetToLineup(): void {
+    if (this.end && WIPEOUTS.includes(this.end.reason)) {
+      this.score = 0;
+      this.caught = 0;
+    }
     this.phase = 'waiting';
     this.ride = null;
     this.end = null;
