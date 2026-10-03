@@ -1,6 +1,6 @@
 // Wave model: sets, peak/pockets, breaking fronts and the height field the sea mesh samples.
 
-import type { Conditions } from './conditions';
+import { rollHollow, tideShift, type Conditions } from './conditions';
 
 /** Which way a wave peels: 0 = A-frame (both pockets), 1 = rights only (+x), -1 = lefts only (-x). */
 export type Peel = 0 | 1 | -1;
@@ -10,6 +10,12 @@ export interface BreakFront {
   startT: number;
   /** 0 breaks both ways from x; ±1 peels one way, everything behind it is whitewater. */
   dir: Peel;
+}
+
+/** A deep stretch where the wave backs off, goes green again and re-breaks past it. */
+export interface Reform {
+  z0: number;
+  z1: number;
 }
 
 export interface Wave {
@@ -30,6 +36,12 @@ export interface Wave {
   peel: Peel;
   /** Crest rotation about the peak (radians): the crest at x sits at crestZ + tan(angle) * (x - peakX). */
   angle: number;
+  /** Where this wave starts breaking and where it fades: BREAK_Z / FADE_Z shifted by the tide. */
+  breakZ: number;
+  fadeZ: number;
+  /** 0.3 = crumbly spilling wave, 1 = hollow plunging wave. */
+  hollow: number;
+  reform: Reform | null;
 }
 
 export interface SpotConfig {
@@ -92,9 +104,16 @@ export function foamEdgeWobble(x: number, t: number, seed: number): number {
   );
 }
 
-export function fadeAt(z: number): number {
-  if (z < FADE_Z) return 1;
-  return Math.max(0, 1 - (z - FADE_Z) / (SHORE_Z - FADE_Z));
+export function fadeAt(w: Wave, z: number): number {
+  if (z < w.fadeZ) return 1;
+  return Math.max(0, 1 - (z - w.fadeZ) / (SHORE_Z - w.fadeZ));
+}
+
+/** 0 outside the deep section, 1 in the middle of it. */
+export function reformAmount(w: Wave, cz: number): number {
+  const r = w.reform;
+  if (!r) return 0;
+  return smoothstep(r.z0, r.z0 + 4, cz) * (1 - smoothstep(r.z1 - 4, r.z1, cz));
 }
 
 export function envelope(w: Wave, x: number): number {
@@ -103,7 +122,8 @@ export function envelope(w: Wave, x: number): number {
 }
 
 export function localHeight(w: Wave, x: number, t: number): number {
-  return w.height * envelope(w, x) * fadeAt(crestZAt(w, x, t));
+  const cz = crestZAt(w, x, t);
+  return w.height * envelope(w, x) * fadeAt(w, cz) * (1 - 0.4 * reformAmount(w, cz));
 }
 
 export function faceLength(h: number): number {
@@ -132,11 +152,13 @@ export function peelLabel(w: Wave): string {
 export function brokenAmount(w: Wave, x: number, t: number, spot: SpotConfig): number {
   let best = 0;
   const cz = crestZAt(w, x, t);
-  if (cz > FADE_Z + 4) best = Math.min(1, (cz - FADE_Z - 4) / 6);
+  if (cz > w.fadeZ + 4) best = Math.min(1, (cz - w.fadeZ - 4) / 6);
+  const alive = 1 - 0.92 * reformAmount(w, cz);
+  const edge = 2.2 + 2.5 * (1 - w.hollow);
   for (const f of w.fronts) {
     const r = spot.peelSpeed * (t - f.startT) + foamEdgeWobble(x, t, f.startT);
     const d = (f.dir === 0 ? Math.abs(x - f.x) : (x - f.x) * f.dir) - r;
-    const a = d <= 0 ? 1 : Math.max(0, 1 - d / 2.2);
+    const a = (d <= 0 ? 1 : Math.max(0, 1 - d / edge)) * alive;
     if (a > best) best = a;
   }
   return best;
@@ -150,11 +172,11 @@ export function brokenAmount(w: Wave, x: number, t: number, spot: SpotConfig): n
 export function steepness(w: Wave, x: number, t: number, spot: SpotConfig): number {
   if (!w.isSet) return 0;
   const cz = crestZAt(w, x, t);
-  const ramp = smoothstep(BREAK_Z - 14, BREAK_Z + 1, cz) * fadeAt(cz);
+  const ramp = smoothstep(w.breakZ - 14, w.breakZ + 1, cz) * fadeAt(w, cz) * (1 - reformAmount(w, cz));
   if (ramp <= 0) return 0;
   const dx = pocketOffset(w, x, t, spot);
   const lateral = dx <= CURL_WIDTH ? 1 : 0.35 + 0.65 * Math.exp(-(((dx - CURL_WIDTH) / 10) ** 2));
-  return ramp * lateral;
+  return ramp * lateral * w.hollow;
 }
 
 /** Asymmetric profile across the travel direction. d > 0 is the shore side (steep face). */
@@ -244,6 +266,7 @@ export class WaveScheduler {
   private setPeakX = 0;
   private setSize = 5;
   private setIndex = 0;
+  private lastT = 0;
   lastSetPeakX = 0;
 
   spot: SpotConfig;
@@ -261,6 +284,7 @@ export class WaveScheduler {
     this.mode = 'lull';
     this.remaining = 2;
     this.nextSpawnT = 1.5;
+    this.lastT = 0;
   }
 
   get modeLabel(): string {
@@ -269,16 +293,21 @@ export class WaveScheduler {
 
   update(t: number): void {
     const spot = this.spot;
+    const dt = Math.max(0, t - this.lastT);
+    this.lastT = t;
     if (t >= this.nextSpawnT) {
       this.spawn(t);
     }
     for (const w of this.waves) {
       const cz = crestZ(w, t);
-      if (w.isSet && w.fronts.length === 0 && cz >= BREAK_Z) {
+      if (w.isSet && w.fronts.length === 0 && cz >= w.breakZ) {
         w.fronts.push({ x: w.peakX, startT: t, dir: w.peel });
         w.nextSectionT = t + rand(3, 7);
       }
-      if (w.isSet && w.fronts.length > 0 && t > w.nextSectionT && cz < FADE_Z) {
+      // Over the deep section the whitewater stops advancing; it picks up again past it.
+      const rf = reformAmount(w, cz);
+      if (rf > 0) for (const f of w.fronts) f.startT += dt * rf;
+      if (w.isSet && w.fronts.length > 0 && t > w.nextSectionT && cz < w.fadeZ) {
         w.nextSectionT = t + rand(3.5, 8);
         if (Math.random() < spot.sectionChance) {
           const half = brokenHalfWidth(w, t, spot);
@@ -325,6 +354,14 @@ export class WaveScheduler {
   }
 
   private makeWave(t: number, height: number, peakX: number, isSet: boolean, peel: Peel): Wave {
+    const shift = tideShift(this.conditions, t);
+    const breakZ = BREAK_Z + shift;
+    const fadeZ = FADE_Z + shift;
+    let reform: Reform | null = null;
+    if (isSet && height >= 0.9 && Math.random() < 0.25) {
+      const z0 = breakZ + rand(8, 14);
+      reform = { z0, z1: Math.min(fadeZ - 6, z0 + rand(8, 12)) };
+    }
     return {
       id: this.nextId++,
       height,
@@ -342,6 +379,10 @@ export class WaveScheduler {
       passedSurfer: false,
       peel,
       angle: this.conditions.angle + rand(-0.03, 0.03),
+      breakZ,
+      fadeZ,
+      hollow: isSet ? rollHollow(this.conditions) : 1,
+      reform,
     };
   }
 

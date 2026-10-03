@@ -1,8 +1,6 @@
 import * as THREE from 'three';
 import {
-  BREAK_Z,
   CURL_WIDTH,
-  FADE_Z,
   brokenAmount,
   brokenHalfWidth,
   crestZ,
@@ -213,7 +211,7 @@ export class Lips {
     for (const w of waves) {
       if (!w.isSet || w.fronts.length === 0) continue;
       const cz = crestZ(w, t);
-      if (cz > FADE_Z + 2) continue;
+      if (cz > w.fadeZ + 2) continue;
       const half = brokenHalfWidth(w, t, spot);
       const sides: (1 | -1)[] = w.peel === 0 ? [1, -1] : [w.peel];
       for (const side of sides) {
@@ -277,7 +275,7 @@ export class Lips {
       const edge = dx < 0 ? Math.max(0, 1 + dx / 1.5) : dx < CURL_WIDTH ? 1 : Math.max(0, 1 - (dx - CURL_WIDTH) / 6);
       const amp = localHeight(w, x, t) * (1 - 0.35 * brokenAmount(w, x, t, spot));
       const czx = cz + tanA * (x - w.peakX);
-      const throwRamp = Math.min(1, Math.max(0, (czx - (BREAK_Z - 3)) / 7));
+      const throwRamp = Math.min(1, Math.max(0, (czx - (w.breakZ - 3)) / 7));
       const T = steepness(w, x, t, spot) * edge * throwRamp;
       maxT = Math.max(maxT, T);
       const top = seaPointAt(waves, x, czx, t, spot, this.pt);

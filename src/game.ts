@@ -6,7 +6,6 @@ import { Wake } from './wake';
 import { Lips } from './lip';
 import { SurferRig, type Stance } from './surfer';
 import {
-  BREAK_Z,
   SMALL_WAVE_MAX,
   WaveScheduler,
   brokenAmount,
@@ -23,7 +22,7 @@ import {
 } from './wave';
 import type { Spot, Surfer } from './roster';
 import type { Hud } from './hud';
-import { describeConditions, rollConditions, type Conditions } from './conditions';
+import { describeConditions, rollConditions, tideRising, type Conditions } from './conditions';
 
 export type Phase = 'start' | 'waiting' | 'riding' | 'ended';
 export type EndReason = 'peak' | 'closeout' | 'caught' | 'overback' | 'faded';
@@ -295,7 +294,7 @@ export class Game {
         this.hud.flash('In the pocket but paddling into the peak. Wave lost.');
         return;
       }
-      if (crestZAt(w, this.x, t) < BREAK_Z - 4) {
+      if (crestZAt(w, this.x, t) < w.breakZ - 4) {
         this.hud.flash('Too early, it was not steep enough yet.');
         return;
       }
@@ -498,12 +497,15 @@ export class Game {
       const w = this.ride.wave;
       return `Riding set wave ${w.setIndex}/${w.setSize} · ${localHeight(w, this.x, this.t).toFixed(1)} m here`;
     }
+    const tide = `tide ${tideRising(this.conditions, this.t) ? '↑' : '↓'}`;
     const next = this.scheduler.nextSetWave(this.t, this.z);
     if (next) {
       const dist = Math.round(this.z - crestZAt(next, this.x, this.t));
-      return `Set wave ${next.setIndex}/${next.setSize} · ${next.height.toFixed(1)} m · ${peelLabel(next)} · ${dist} m out`;
+      const kind = next.hollow < 0.55 ? 'spilling' : next.hollow > 0.8 ? 'hollow' : '';
+      const extra = [kind, next.reform ? 'reform' : '', tide].filter(Boolean).join(' · ');
+      return `Set wave ${next.setIndex}/${next.setSize} · ${next.height.toFixed(1)} m · ${peelLabel(next)} · ${dist} m out · ${extra}`;
     }
-    return this.scheduler.modeLabel === 'set' ? 'Set wave on the way' : 'Lull. Small waves, the set is coming.';
+    return `${this.scheduler.modeLabel === 'set' ? 'Set wave on the way' : 'Lull. Small waves, the set is coming.'} · ${tide}`;
   }
 }
 

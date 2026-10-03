@@ -248,7 +248,7 @@ export class Sea {
           }
           if (b > 0) {
             let front: number;
-            const fe = L * (1.3 + 0.35 * Math.sin(1.7 * x + 3 * t) + 0.2 * Math.sin(4.3 * x - 2.2 * t));
+            const fe = L * (1.3 + 0.6 * (1 - w.hollow) + 0.35 * Math.sin(1.7 * x + 3 * t) + 0.2 * Math.sin(4.3 * x - 2.2 * t));
             const fb = -L * (0.3 + 0.18 * Math.sin(2.1 * x + 1.3 * t) + 0.1 * Math.sin(5.3 * x - 2 * t));
             if (d >= fb && d <= fe) front = 1;
             else if (d > fe) front = Math.exp(-((d - fe) ** 2) / (0.1 * L * L));
