@@ -101,6 +101,9 @@ export function paintFace(ctx: CanvasRenderingContext2D, variant: number, skin: 
   const H = ctx.canvas.height;
   ctx.clearRect(0, 0, W, H);
   if (photo && photo.width > 0) {
+    // Skin under the photo so a cut-out face (transparent around the oval) blends into the head.
+    ctx.fillStyle = skin;
+    ctx.fillRect(0, 0, W, H);
     const s = Math.min(photo.width, photo.height);
     ctx.save();
     ctx.translate(W, 0);

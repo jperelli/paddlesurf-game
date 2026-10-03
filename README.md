@@ -11,7 +11,7 @@ npm install
 npm run dev
 ```
 
-Open the printed URL. The start screen shows your surfer idling on the board: pick a face (Alfredo, Julian, Ferchu or el Tano, each a real photo mapped onto the head), a board and a paddle, type the name for the high scores, then pick the spot from the photo tiles and paddle out. Settings > "Back to the start screen" brings it back.
+Open the printed URL. The UI is in English or Spanish, following the browser language (`?lang=es` or `?lang=en` forces one; strings live in `src/i18n.ts`). The start screen shows your surfer idling on the board: pick a face (Alfredo, Julian, Ferchu or el Tano, each a real photo cut out along the face oval and aligned to the eyes, mouth and chin of the face texture, then mapped onto the head), a board and a paddle, type the name for the high scores, then pick the spot from the photo tiles and paddle out. Settings > "Back to the start screen" brings it back.
 
 ## The game loop
 

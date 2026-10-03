@@ -3,6 +3,7 @@ import { isSaved, saveQuality } from './quality';
 import { BOARDS, BODIES, FACES, PADDLES, photoToDataUrl } from './looks';
 import { KEY_LABELS, SURFER_KEYS, WATER_KEYS, type PaletteKey, type SurferPalette, type WaterPalette } from './palette';
 import { resetRoster, saveRoster, type Roster } from './roster';
+import { t } from './i18n';
 
 /** Settings drawer: pick surfer and spot, rename them, tweak their colours. */
 export class SettingsPanel {
@@ -18,58 +19,58 @@ export class SettingsPanel {
     this.game = game;
     root.className = 'settings hidden';
     root.innerHTML = `
-      <div class="settings-head"><h2>Surfers & spots</h2><button id="st-close">✕</button></div>
+      <div class="settings-head"><h2>${t('Surfers & spots')}</h2><button id="st-close">✕</button></div>
       <section>
-        <label>Surfer <select id="st-surfer"></select></label>
-        <input id="st-surfer-name" placeholder="Surfer name" />
-        <button id="st-surfer-add">Add surfer</button>
-        <div class="label">Face</div>
+        <label>${t('Surfer')} <select id="st-surfer"></select></label>
+        <input id="st-surfer-name" placeholder="${t('Surfer name')}" />
+        <button id="st-surfer-add">${t('Add surfer')}</button>
+        <div class="label">${t('Face')}</div>
         <div id="st-face" class="picks"></div>
         <div class="row photo-row">
-          <label class="file">Use a photo of your face <input id="st-face-photo" type="file" accept="image/*" /></label>
-          <button id="st-face-clear">Drawn face</button>
+          <label class="file">${t('Use a photo of your face')} <input id="st-face-photo" type="file" accept="image/*" /></label>
+          <button id="st-face-clear">${t('Drawn face')}</button>
           <span id="st-face-note" class="small"></span>
         </div>
-        <div class="label">Body</div>
+        <div class="label">${t('Body')}</div>
         <div id="st-body" class="picks"></div>
-        <div class="label">Board</div>
+        <div class="label">${t('Board')}</div>
         <div id="st-board" class="picks"></div>
-        <div class="label">Paddle</div>
+        <div class="label">${t('Paddle')}</div>
         <div id="st-paddle" class="picks"></div>
       </section>
       <section>
-        <label>Spot <select id="st-spot"></select></label>
-        <input id="st-spot-name" placeholder="Spot name" />
-        <button id="st-spot-add">Add spot</button>
+        <label>${t('Spot')} <select id="st-spot"></select></label>
+        <input id="st-spot-name" placeholder="${t('Spot name')}" />
+        <button id="st-spot-add">${t('Add spot')}</button>
         <div class="grid">
-          <label>Min height (m) <input id="st-minh" type="number" step="0.1" min="0.5" max="4" /></label>
-          <label>Max height (m) <input id="st-maxh" type="number" step="0.1" min="0.5" max="4" /></label>
-          <label>Peel speed (m/s) <input id="st-peel" type="number" step="0.1" min="1" max="8" /></label>
-          <label>Closeout chance <input id="st-section" type="number" step="0.05" min="0" max="1" /></label>
-          <label>Rights only (share) <input id="st-right" type="number" step="0.05" min="0" max="1" /></label>
-          <label>Lefts only (share) <input id="st-left" type="number" step="0.05" min="0" max="1" /></label>
-          <label>Waves per set (min) <input id="st-setmin" type="number" step="1" min="1" max="12" /></label>
-          <label>Waves per set (max) <input id="st-setmax" type="number" step="1" min="1" max="12" /></label>
+          <label>${t('Min height (m)')} <input id="st-minh" type="number" step="0.1" min="0.5" max="4" /></label>
+          <label>${t('Max height (m)')} <input id="st-maxh" type="number" step="0.1" min="0.5" max="4" /></label>
+          <label>${t('Peel speed (m/s)')} <input id="st-peel" type="number" step="0.1" min="1" max="8" /></label>
+          <label>${t('Closeout chance')} <input id="st-section" type="number" step="0.05" min="0" max="1" /></label>
+          <label>${t('Rights only (share)')} <input id="st-right" type="number" step="0.05" min="0" max="1" /></label>
+          <label>${t('Lefts only (share)')} <input id="st-left" type="number" step="0.05" min="0" max="1" /></label>
+          <label>${t('Waves per set (min)')} <input id="st-setmin" type="number" step="1" min="1" max="12" /></label>
+          <label>${t('Waves per set (max)')} <input id="st-setmax" type="number" step="1" min="1" max="12" /></label>
         </div>
       </section>
       <section>
-        <h3>Gameplay</h3>
-        <label><input id="st-hints" type="checkbox" /> Show the subtle peak and pocket hints (red = peak, green = pockets; H toggles them)</label>
+        <h3>${t('Gameplay')}</h3>
+        <label><input id="st-hints" type="checkbox" /> ${t('Show the subtle peak and pocket hints (red = peak, green = pockets; H toggles them)')}</label>
       </section>
       <section>
-        <h3>Graphics</h3>
-        <label>Quality <select id="st-quality"><option value="high">High: full water detail, all the spray</option><option value="low">Low: smoother on phones</option></select></label>
+        <h3>${t('Graphics')}</h3>
+        <label>${t('Quality')} <select id="st-quality"><option value="high">${t('High: full water detail, all the spray')}</option><option value="low">${t('Low: smoother on phones')}</option></select></label>
         <p class="small" id="st-quality-note"></p>
       </section>
       <section>
-        <h3>Colours</h3>
-        <p class="small">Defaults come from the reference photo. Tweak a swatch to give a friend their own board.</p>
+        <h3>${t('Colours')}</h3>
+        <p class="small">${t('Defaults come from the reference photo. Tweak a swatch to give a friend their own board.')}</p>
         <div class="swatches" id="st-swatches"></div>
       </section>
       <section class="row">
-        <button id="st-save">Save</button>
-        <button id="st-start">Back to the start screen</button>
-        <button id="st-reset" class="danger">Reset to defaults</button>
+        <button id="st-save">${t('Save')}</button>
+        <button id="st-start">${t('Back to the start screen')}</button>
+        <button id="st-reset" class="danger">${t('Reset to defaults')}</button>
         <span id="st-msg" class="small"></span>
       </section>
     `;
@@ -109,8 +110,8 @@ export class SettingsPanel {
     const qsel = this.q<HTMLSelectElement>('#st-quality');
     qsel.value = this.game.quality;
     this.q('#st-quality-note').textContent = isSaved()
-      ? `Using ${this.game.quality} quality.`
-      : `Picked ${this.game.quality} for this device. Changing it reloads the page (your spot, conditions and session code are kept in the link).`;
+      ? t('Using {q} quality.', { q: t(this.game.quality) })
+      : t('Picked {q} for this device. Changing it reloads the page (your spot, conditions and session code are kept in the link).', { q: t(this.game.quality) });
     qsel.onchange = () => {
       const v = qsel.value === 'low' ? 'low' : 'high';
       saveQuality(v);
@@ -137,13 +138,13 @@ export class SettingsPanel {
       this.renderSelects();
     };
     this.q('#st-surfer-add').onclick = () => {
-      this.roster.surfers.push({ name: `Surfer ${this.roster.surfers.length + 1}`, palette: { ...this.surfer.palette }, look: { ...this.surfer.look } });
+      this.roster.surfers.push({ name: t('Surfer {n}', { n: this.roster.surfers.length + 1 }), palette: { ...this.surfer.palette }, look: { ...this.surfer.look } });
       this.roster.surferIndex = this.roster.surfers.length - 1;
       this.apply();
       this.render();
     };
     this.q('#st-spot-add').onclick = () => {
-      this.roster.spots.push({ ...this.spot, name: `Spot ${this.roster.spots.length + 1}`, water: { ...this.spot.water } });
+      this.roster.spots.push({ ...this.spot, name: t('Spot {n}', { n: this.roster.spots.length + 1 }), water: { ...this.spot.water } });
       this.roster.spotIndex = this.roster.spots.length - 1;
       this.apply();
       this.render();
@@ -158,11 +159,11 @@ export class SettingsPanel {
         this.surfer.look.facePhoto = photoToDataUrl(img);
         this.apply();
         this.renderPicks();
-        this.q('#st-face-note').textContent = 'Photo on the face. Press Save to keep it.';
+        this.q('#st-face-note').textContent = t('Photo on the face. Press Save to keep it.');
       };
       img.onerror = () => {
         URL.revokeObjectURL(url);
-        this.q('#st-face-note').textContent = 'Could not read that image.';
+        this.q('#st-face-note').textContent = t('Could not read that image.');
       };
       img.src = url;
     };
@@ -191,7 +192,7 @@ export class SettingsPanel {
 
     this.q('#st-save').onclick = () => {
       saveRoster(this.roster);
-      this.q('#st-msg').textContent = 'Saved in this browser.';
+      this.q('#st-msg').textContent = t('Saved in this browser.');
     };
     this.q('#st-start').onclick = () => {
       this.game.toStart();
@@ -245,8 +246,8 @@ export class SettingsPanel {
         const b = document.createElement('button');
         b.className = `pick${this.surfer.look[key] === i ? ' on' : ''}`;
         b.innerHTML = '<b></b><span></span>';
-        b.querySelector('b')!.textContent = o.name;
-        b.querySelector('span')!.textContent = o.desc;
+        b.querySelector('b')!.textContent = t(o.name);
+        b.querySelector('span')!.textContent = t(o.desc);
         b.onclick = () => {
           this.surfer.look[key] = i;
           this.apply();
@@ -278,7 +279,7 @@ export class SettingsPanel {
     const add = (key: PaletteKey, hex: string) => {
       const s = document.createElement('label');
       s.className = 'swatch';
-      s.innerHTML = `<input type="color" value="${hex}" /><span>${KEY_LABELS[key]}</span>`;
+      s.innerHTML = `<input type="color" value="${hex}" /><span>${t(KEY_LABELS[key])}</span>`;
       s.querySelector('input')!.oninput = (e) => this.setColour(key, (e.target as HTMLInputElement).value);
       el.appendChild(s);
     };

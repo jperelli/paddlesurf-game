@@ -1,6 +1,7 @@
 // High-score client: talks to /api/scores and renders the leaderboard with its period tabs.
 
 export type Period = 'day' | 'week' | 'month' | 'all';
+import { t } from './i18n';
 
 export interface ScoreRow {
   id: number;
@@ -85,7 +86,7 @@ export class Leaderboard {
     for (const p of PERIODS) {
       const b = document.createElement('button');
       b.className = 'tab';
-      b.textContent = p.name;
+      b.textContent = t(p.name);
       b.dataset.period = p.id;
       b.addEventListener('click', () => {
         b.blur();
@@ -101,7 +102,7 @@ export class Leaderboard {
     this.highlight = highlight;
     for (const b of this.tabsEl.querySelectorAll<HTMLElement>('.tab')) b.classList.toggle('on', b.dataset.period === period);
     const seq = ++this.seq;
-    this.bodyEl.innerHTML = '<p class="small">Loading…</p>';
+    this.bodyEl.innerHTML = `<p class="small">${t('Loading…')}</p>`;
     fetchScores(period)
       .then((rows) => {
         if (seq !== this.seq) return;
@@ -109,22 +110,22 @@ export class Leaderboard {
       })
       .catch(() => {
         if (seq !== this.seq) return;
-        this.bodyEl.innerHTML = '<p class="small">High scores unavailable right now.</p>';
+        this.bodyEl.innerHTML = `<p class="small">${t('High scores unavailable right now.')}</p>`;
       });
   }
 
   private render(rows: ScoreRow[]): void {
     if (!rows.length) {
-      this.bodyEl.innerHTML = '<p class="small">No runs yet. Be the first.</p>';
+      this.bodyEl.innerHTML = `<p class="small">${t('No runs yet. Be the first.')}</p>`;
       return;
     }
     const table = document.createElement('table');
-    table.innerHTML = '<thead><tr><th>#</th><th class="l">Name</th><th>Waves</th><th>Points</th><th class="l">Spot</th><th>When</th></tr></thead><tbody></tbody>';
+    table.innerHTML = `<thead><tr><th>#</th><th class="l">${t('Name')}</th><th>${t('Waves')}</th><th>${t('Points')}</th><th class="l">${t('Spot')}</th><th>${t('When')}</th></tr></thead><tbody></tbody>`;
     const tbody = table.querySelector('tbody')!;
     rows.forEach((r, i) => {
       const tr = document.createElement('tr');
       if (r.id === this.highlight) tr.className = 'me';
-      const cells = [String(i + 1), r.name, String(r.waves), String(r.points), r.spot.replace(/,.*$/, ''), when(r.at)];
+      const cells = [String(i + 1), r.name, String(r.waves), String(r.points), t(r.spot).replace(/,.*$/, ''), when(r.at)];
       cells.forEach((c, j) => {
         const td = document.createElement('td');
         td.textContent = c;

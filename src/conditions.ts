@@ -10,6 +10,7 @@ export interface SecondSwell {
 }
 
 import { random } from './rng';
+import { t } from './i18n';
 
 export type Preset = 'random' | 'glassy' | 'offshore' | 'onshore' | 'crosswind' | 'current';
 
@@ -138,19 +139,19 @@ export function describeConditions(c: Conditions): string {
   const parts: string[] = [];
   const h = Math.floor(c.hour);
   const m = Math.floor((c.hour - h) * 60);
-  const when = c.hour < 10 ? 'early light' : c.hour < 16 ? 'high sun' : 'evening light';
+  const when = t(c.hour < 10 ? 'early light' : c.hour < 16 ? 'high sun' : 'evening light');
   parts.push(`${h}:${m < 10 ? '0' : ''}${m}, ${when}`);
   const ws = windSpeed(c);
-  if (ws < 1) parts.push('glassy, no wind');
+  if (ws < 1) parts.push(t('glassy, no wind'));
   else {
-    const strength = ws < 3 ? 'light' : ws < 5 ? 'moderate' : 'strong';
-    parts.push(`${strength} ${c.windZ < 0 ? 'offshore' : 'onshore'} wind`);
+    const strength = t(ws < 3 ? 'light' : ws < 5 ? 'moderate' : 'strong');
+    parts.push(t('{strength} {dir} wind', { strength, dir: t(c.windZ < 0 ? 'offshore' : 'onshore') }));
   }
-  if (Math.abs(c.angle) > 0.07) parts.push(`swell coming in at an angle from the ${c.angle > 0 ? 'left' : 'right'}`);
-  if (c.current !== 0) parts.push(`current pulling ${c.current > 0 ? 'right' : 'left'}`);
-  if (c.swell2) parts.push(`a second swell crossing in from the ${c.swell2.angle > 0 ? 'left' : 'right'}`);
-  if (c.windZ > 1) parts.push('crumbly spilling waves');
-  else if (c.windZ < -1) parts.push('hollow plunging waves');
-  parts.push(`tide ${tideRising(c, 0) ? 'rising' : 'dropping'}`);
+  if (Math.abs(c.angle) > 0.07) parts.push(t('swell coming in at an angle from the {side}', { side: t(c.angle > 0 ? 'left' : 'right') }));
+  if (c.current !== 0) parts.push(t('current pulling {side}', { side: t(c.current > 0 ? 'right' : 'left') }));
+  if (c.swell2) parts.push(t('a second swell crossing in from the {side}', { side: t(c.swell2.angle > 0 ? 'left' : 'right') }));
+  if (c.windZ > 1) parts.push(t('crumbly, spilling waves'));
+  else if (c.windZ < -1) parts.push(t('hollow plunging waves'));
+  parts.push(t(tideRising(c, 0) ? 'tide rising' : 'tide dropping'));
   return parts.join(' · ');
 }

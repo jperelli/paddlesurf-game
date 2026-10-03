@@ -10,6 +10,7 @@ import {
 } from './palette';
 import type { SpotConfig } from './wave';
 import { defaultLook, type Look } from './looks';
+import { t } from './i18n';
 
 export interface Surfer {
   name: string;
@@ -30,15 +31,17 @@ export interface Roster {
   spotIndex: number;
 }
 
-const KEY = 'paddlesurf.roster.v7';
+const KEY = 'paddlesurf.roster.v8';
 
 export function defaultRoster(): Roster {
   return {
     surfers: [
-      { name: 'Alfredo', palette: { ...DEFAULT_SURFER, board: '#2f7fb8', boardNose: '#f4f4f4', boardTail: '#f4f4f4' }, look: { ...defaultLook(1), facePhoto: 'faces/alfredo.jpg' } },
-      { name: 'Julian', palette: { ...DEFAULT_SURFER }, look: { ...defaultLook(0), facePhoto: 'faces/julian.jpg' } },
-      { name: 'Ferchu', palette: { ...DEFAULT_SURFER, board: '#f0f0ea', boardNose: '#2aa4b5', boardTail: '#2aa4b5' }, look: { ...defaultLook(2), facePhoto: 'faces/ferchu.jpg' } },
-      { name: 'el Tano', palette: { ...DEFAULT_SURFER, board: '#2e8b57', boardNose: '#f2c84b', boardTail: '#f2c84b', wetsuit: '#1d2a3a' }, look: { ...defaultLook(0), body: 2, facePhoto: 'faces/tano.jpg' } },
+      // Face photos are cut out along the face oval and aligned to the face texture layout
+      // (eyes, mouth, chin); the skin colour under each one is sampled from the photo's cheeks.
+      { name: 'Alfredo', palette: { ...DEFAULT_SURFER, skin: '#aa706b', hair: '#2a211c', board: '#2f7fb8', boardNose: '#f4f4f4', boardTail: '#f4f4f4' }, look: { ...defaultLook(1), face: 0, facePhoto: 'faces/alfredo.png' } },
+      { name: 'Julian', palette: { ...DEFAULT_SURFER, skin: '#9f7165', hair: '#3f3028' }, look: { ...defaultLook(0), face: 1, facePhoto: 'faces/julian.png' } },
+      { name: 'Ferchu', palette: { ...DEFAULT_SURFER, skin: '#c98d7c', hair: '#2b2420', board: '#f0f0ea', boardNose: '#2aa4b5', boardTail: '#2aa4b5' }, look: { ...defaultLook(2), face: 0, facePhoto: 'faces/ferchu.png' } },
+      { name: 'el Tano', palette: { ...DEFAULT_SURFER, skin: '#dcbfa8', hair: '#1f1a18', board: '#2e8b57', boardNose: '#f2c84b', boardTail: '#f2c84b', wetsuit: '#1d2a3a' }, look: { ...defaultLook(0), face: 1, body: 2, facePhoto: 'faces/tano.png' } },
     ],
     spots: [
       {
@@ -139,8 +142,13 @@ export function defaultRoster(): Roster {
 
 /** One-line description of a spot for the level picker. */
 export function describeSpot(s: Spot): string {
-  const dir = s.rightOnly >= 1 ? 'rights only' : s.leftOnly >= 1 ? 'lefts only' : 'lefts & rights';
-  return `${s.minHeight.toFixed(1)}–${s.maxHeight.toFixed(1)} m · sets of ${s.setMin}–${s.setMax} · ${dir}`;
+  const dir = t(s.rightOnly >= 1 ? 'rights only' : s.leftOnly >= 1 ? 'lefts only' : 'lefts & rights');
+  return t('{min}–{max} m · sets of {a}–{b} · {dir}', { min: s.minHeight.toFixed(1), max: s.maxHeight.toFixed(1), a: s.setMin, b: s.setMax, dir });
+}
+
+/** Display name of a spot: the built-in ones have a translation, custom names pass through. */
+export function spotLabel(s: { name: string }): string {
+  return t(s.name);
 }
 
 export function loadRoster(): Roster {

@@ -434,9 +434,12 @@ export class SurferRig {
     face.position.set(0, -0.03, 0.004);
     const parts: THREE.Object3D[] = [face];
     if (fc.hair) {
-      const hair = new THREE.Mesh(new THREE.SphereGeometry(0.106, 18, 14, 0, Math.PI * 2, 0, Math.PI * fc.hair.theta), this.mats.hair);
+      // A photo brings its own hairline, so the hair cap stops higher and tilts back off the brow.
+      const photo = !!this.look.facePhoto;
+      const theta = photo ? Math.min(fc.hair.theta, 0.52) : fc.hair.theta;
+      const hair = new THREE.Mesh(new THREE.SphereGeometry(0.106, 18, 14, 0, Math.PI * 2, 0, Math.PI * theta), this.mats.hair);
       hair.scale.set(...fc.hair.scale);
-      hair.rotation.x = fc.hair.rot;
+      hair.rotation.x = fc.hair.rot - (photo ? 0.3 : 0);
       parts.push(hair);
     }
     const nose = ball(0.016, this.mats.skin);

@@ -2,9 +2,10 @@ import type { Game } from './game';
 import type { Hud } from './hud';
 import { BOARDS, PADDLES, type BoardSpec, type PaddleSpec } from './looks';
 import type { SurferPalette } from './palette';
-import { describeSpot, type Roster } from './roster';
+import { describeSpot, spotLabel, type Roster } from './roster';
 import { loadPlayerName, savePlayerName } from './scores';
 import { paintDeck } from './surfer';
+import { t } from './i18n';
 
 const TILE = 96;
 
@@ -42,37 +43,37 @@ export class StartScreen {
       <div class="ss-step ss-surfer">
         <div class="ss-top">
           <h1>Paddle Surf</h1>
-          <div class="ss-group"><div class="label">Who is paddling?</div><div id="ss-faces" class="tiles faces"></div></div>
+          <div class="ss-group"><div class="label">${t('Who is paddling?')}</div><div id="ss-faces" class="tiles faces"></div></div>
         </div>
         <div class="ss-side">
-          <div class="ss-group"><div class="label">Board</div><div id="ss-boards" class="tiles"></div></div>
-          <div class="ss-group"><div class="label">Paddle</div><div id="ss-paddles" class="tiles"></div></div>
+          <div class="ss-group"><div class="label">${t('Board')}</div><div id="ss-boards" class="tiles"></div></div>
+          <div class="ss-group"><div class="label">${t('Paddle')}</div><div id="ss-paddles" class="tiles"></div></div>
         </div>
         <div class="ss-bottom">
-          <label class="ss-name">Name for the high scores <input id="ss-name" maxlength="24" autocomplete="off" spellcheck="false"></label>
-          <button id="ss-next" class="primary">Next: pick the spot</button>
-          <button id="ss-scores" class="mini">High scores</button>
+          <label class="ss-name">${t('Name for the high scores')} <input id="ss-name" maxlength="24" autocomplete="off" spellcheck="false"></label>
+          <button id="ss-next" class="primary">${t('Next: pick the spot')}</button>
+          <button id="ss-scores" class="mini">${t('High scores')}</button>
         </div>
       </div>
       <div class="ss-step ss-spot hidden">
         <div class="ss-top row ss-head">
-          <button id="ss-back" class="mini">Back</button>
-          <h2>Where are we surfing?</h2>
+          <button id="ss-back" class="mini">${t('Back')}</button>
+          <h2>${t('Where are we surfing?')}</h2>
         </div>
         <div class="ss-middle">
           <div id="ss-spots" class="tiles spots"></div>
-          <div class="label">Conditions</div>
+          <div class="label">${t('Conditions')}</div>
           <div id="ss-conds" class="conds"></div>
-          <div class="row seed-row"><span class="label">Session code</span>
+          <div class="row seed-row"><span class="label">${t('Session code')}</span>
             <input id="ss-seed" maxlength="12" spellcheck="false" autocomplete="off">
-            <button id="ss-seed-new" class="mini">New</button>
-            <button id="ss-seed-copy" class="mini">Copy link</button>
+            <button id="ss-seed-new" class="mini">${t('New')}</button>
+            <button id="ss-seed-copy" class="mini">${t('Copy link')}</button>
             <span id="ss-seed-note" class="label small"></span></div>
         </div>
         <div class="ss-bottom">
-          <button id="ss-play" class="primary">Paddle out</button>
-          <p class="small ss-help">Wait for the set, paddle into the <b>pocket</b> next to the peak (not on it), then ride away from the breaking lip.
-            <span class="keyboard-only"><b>Arrows</b> paddle / steer, <b>up/down</b> step on the board while riding, <b>Space</b> power stroke, <b>H</b> hints, <b>Esc</b> settings.</span></p>
+          <button id="ss-play" class="primary">${t('Paddle out')}</button>
+          <p class="small ss-help">${t('Wait for the set, paddle into the <b>pocket</b> next to the peak (not on it), then ride away from the breaking lip.')}
+            <span class="keyboard-only">${t('<b>Arrows</b> paddle / steer, <b>up/down</b> step on the board while riding, <b>Space</b> power stroke, <b>H</b> hints, <b>Esc</b> settings.')}</span></p>
         </div>
       </div>`;
     const q = <T extends HTMLElement = HTMLElement>(id: string) => root.querySelector<T>(id)!;
@@ -181,7 +182,7 @@ export class StartScreen {
     const s = this.surfer;
     this.boardsEl.innerHTML = '';
     BOARDS.forEach((spec, i) => {
-      const b = this.gearTile(spec.name, s.look.board === i, (c) => drawBoard(c, spec, s.palette));
+      const b = this.gearTile(t(spec.name), s.look.board === i, (c) => drawBoard(c, spec, s.palette));
       b.onclick = () => {
         s.look.board = i;
         this.game.applySurfer(s);
@@ -192,7 +193,7 @@ export class StartScreen {
     });
     this.paddlesEl.innerHTML = '';
     PADDLES.forEach((spec, i) => {
-      const b = this.gearTile(spec.name, s.look.paddle === i, (c) => drawPaddle(c, spec, s.palette));
+      const b = this.gearTile(t(spec.name), s.look.paddle === i, (c) => drawPaddle(c, spec, s.palette));
       b.onclick = () => {
         s.look.paddle = i;
         this.game.applySurfer(s);
@@ -235,7 +236,7 @@ export class StartScreen {
       }
       const cap = document.createElement('span');
       cap.innerHTML = '<b></b><i></i>';
-      cap.querySelector('b')!.textContent = s.name;
+      cap.querySelector('b')!.textContent = spotLabel(s);
       cap.querySelector('i')!.textContent = describeSpot(s);
       b.appendChild(cap);
       b.onclick = () => {
@@ -257,8 +258,8 @@ export class StartScreen {
       const b = document.createElement('button');
       b.className = `cond${p.id === current ? ' on' : ''}`;
       b.innerHTML = '<b></b><span></span>';
-      b.querySelector('b')!.textContent = p.name;
-      b.querySelector('span')!.textContent = p.desc;
+      b.querySelector('b')!.textContent = t(p.name);
+      b.querySelector('span')!.textContent = t(p.desc);
       b.onclick = () => onPick(p.id);
       this.condsEl.appendChild(b);
     }

@@ -2,6 +2,7 @@
 
 import { rollHollow, tideShift, type Conditions, type SecondSwell } from './conditions';
 import { random } from './rng';
+import { t } from './i18n';
 
 /** Which way a wave peels: 0 = A-frame (both pockets), 1 = rights only (+x), -1 = lefts only (-x). */
 export type Peel = 0 | 1 | -1;
@@ -178,7 +179,7 @@ export function pocketOffset(w: Wave, x: number, t: number, spot: SpotConfig): n
 }
 
 export function peelLabel(w: Wave): string {
-  return w.peel === 1 ? 'right →' : w.peel === -1 ? '← left' : '← A-frame →';
+  return w.peel === 1 ? `${t('right only')} →` : w.peel === -1 ? `← ${t('left only')}` : '← A-frame →';
 }
 
 /** Distance (m) along the crest from x to the nearest breaking lip, the moving edge of the whitewater. */

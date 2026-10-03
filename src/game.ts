@@ -29,6 +29,7 @@ import { newSessionCode, seedRng } from './rng';
 import type { Quality } from './quality';
 import { LensDrops } from './lens';
 import { sunColor, sunElevation, sunLow } from './sky';
+import { t as tr } from './i18n';
 
 export type Phase = 'start' | 'waiting' | 'riding' | 'ended';
 export type EndReason = 'peak' | 'closeout' | 'caught' | 'overback' | 'faded';
@@ -239,7 +240,7 @@ export class Game {
     this.heading = Math.PI;
     this.stance = 0;
     this.rig.resetWipeout();
-    this.hud.flash(`Paddle into position and wait for the set. Today: ${describeConditions(this.conditions)} · session ${this.seed}.`, 6000);
+    this.hud.flash(tr('Paddle into position and wait for the set. Today: {conds} · session {seed}.', { conds: describeConditions(this.conditions), seed: this.seed }), 6000);
   }
 
   /** Back to the start screen (from settings); the next paddle-out starts a fresh run. */
@@ -349,8 +350,8 @@ export class Game {
     const t = this.t;
     const h = localHeight(w, this.x, t);
     if (!w.isSet || h < SMALL_WAVE_MAX) {
-      if (w.isSet) this.hud.flash('Too far out on the shoulder, no push there.');
-      else this.hud.flash('Just a small one, it rolled under you.');
+      if (w.isSet) this.hud.flash(tr('Too far out on the shoulder, no push there.'));
+      else this.hud.flash(tr('Just a small one, it rolled under you.'));
       return;
     }
     this.wavesSeen++;
@@ -366,7 +367,7 @@ export class Game {
       const foamHeight = h * (1 - 0.35 * broken);
       const noseIn = this.vz < 0;
       if (broken > 0.5 && foamAge > FOAM_SOFT_AGE) {
-        this.hud.flash('Old foam, it just rolled under you.');
+        this.hud.flash(tr('Old foam, it just rolled under you.'));
         return;
       }
       const shove = (msg: string) => {
@@ -375,17 +376,17 @@ export class Game {
         this.fatigue = Math.min(1, this.fatigue + 0.06);
         this.lens.splash(3, false);
       };
-      if (stopped) this.hud.flash('Sitting still when it broke on you.');
-      else if (Math.abs(this.vx) >= Math.abs(this.vz)) this.hud.flash('Sideways in the impact zone. Over you go.');
+      if (stopped) this.hud.flash(tr('Sitting still when it broke on you.'));
+      else if (Math.abs(this.vx) >= Math.abs(this.vz)) this.hud.flash(tr('Sideways in the impact zone. Over you go.'));
       else if (broken > 0.5) {
         if (foamHeight < FOAM_PUNCH_HEIGHT) {
-          shove(noseIn ? 'Punched through the foam.' : 'The foam shoved you toward the beach.');
+          shove(tr(noseIn ? 'Punched through the foam.' : 'The foam shoved you toward the beach.'));
           return;
         }
-        this.hud.flash('Too much foam to punch through.');
-      } else if (noseIn) this.hud.flash('Nose straight into the lip. Over the falls.');
+        this.hud.flash(tr('Too much foam to punch through.'));
+      } else if (noseIn) this.hud.flash(tr('Nose straight into the lip. Over the falls.'));
       else {
-        shove('The lip landed behind you and shoved you in.');
+        shove(tr('The lip landed behind you and shoved you in.'));
         return;
       }
       this.endRide('peak', w);
@@ -393,23 +394,23 @@ export class Game {
     }
     if (off < POCKET_WIDTH) {
       if (stopped) {
-        this.hud.flash('Sitting still as the pocket arrived. It threw you.');
+        this.hud.flash(tr('Sitting still as the pocket arrived. It threw you.'));
         this.endRide('peak', w);
         return;
       }
       if (this.vx * side < -0.8) {
-        this.hud.flash('In the pocket but paddling into the peak. Wave lost.');
+        this.hud.flash(tr('In the pocket but paddling into the peak. Wave lost.'));
         return;
       }
       if (crestZAt(w, this.x, t) < w.breakZ - 4) {
-        this.hud.flash('Too early, it was not steep enough yet.');
+        this.hud.flash(tr('Too early, it was not steep enough yet.'));
         return;
       }
       this.startRide(w, side);
       return;
     }
-    if (off < POCKET_WIDTH + 10) this.hud.flash('Too far on the shoulder, it passed under you.');
-    else this.hud.flash('Missed it, too far from the peak.');
+    if (off < POCKET_WIDTH + 10) this.hud.flash(tr('Too far on the shoulder, it passed under you.'));
+    else this.hud.flash(tr('Missed it, too far from the peak.'));
   }
 
   private startRide(w: Wave, dir: 1 | -1): void {
@@ -417,7 +418,7 @@ export class Game {
     this.ride = { wave: w, dir, rel: 0.3, theta: 0.45, time: 0, points: 0, lean: 0 };
     this.stance = 0;
     this.caught++;
-    this.hud.flash(dir === 1 ? 'Got it! Riding →' : 'Got it! Riding ←', 2000);
+    this.hud.flash(tr(dir === 1 ? 'Got it! Riding →' : 'Got it! Riding ←'), 2000);
   }
 
   // ---------------------------------------------------------------- phase 2
@@ -463,18 +464,18 @@ export class Game {
     if (brokenAmount(w, this.x, t, this.spot) > 0.5) {
       const front = w.fronts.find((f) => Math.abs(this.x - f.x) < this.spot.peelSpeed * (t - f.startT) + 1.5);
       const ahead = front ? Math.sign(front.x - this.x) === r.dir : false;
-      if (ahead) this.hud.flash('It closed out in front of you.');
-      else this.hud.flash('The foam caught up with you.');
+      if (ahead) this.hud.flash(tr('It closed out in front of you.'));
+      else this.hud.flash(tr('The foam caught up with you.'));
       this.endRide(ahead ? 'closeout' : 'caught', w);
       return;
     }
     if (r.rel < -0.15) {
-      this.hud.flash('You went over the back. Wave lost.');
+      this.hud.flash(tr('You went over the back. Wave lost.'));
       this.endRide('overback', w);
       return;
     }
     if (H < 0.35) {
-      this.hud.flash('The wave faded out. Nice ride!');
+      this.hud.flash(tr('The wave faded out. Nice ride!'));
       this.endRide('faded', w);
     }
   }
@@ -529,7 +530,7 @@ export class Game {
     this.heading = Math.PI;
     this.stance = 0;
     for (const w of this.scheduler.waves) if (crestZAt(w, this.x, this.t) >= this.z - 2) w.passedSurfer = true;
-    this.hud.flash('Back in the lineup.', 2500);
+    this.hud.flash(tr('Back in the lineup.'), 2500);
   }
 
   // ---------------------------------------------------------------- presentation
@@ -575,7 +576,8 @@ export class Game {
     let idle = 0;
     if (this.phase === 'start') {
       idle = this.idleT;
-      lookYaw = this.startView === 'surfer' ? 0.18 * Math.sin(0.37 * idle) : 0.3 * Math.sin(0.23 * idle);
+      // Eyes roughly on the preview camera (off the nose at about 0.48 rad), wandering a little.
+      lookYaw = this.startView === 'surfer' ? 0.48 + 0.18 * Math.sin(0.37 * idle) : 0.3 * Math.sin(0.23 * idle);
       lookPitch = 0.04 * Math.sin(0.53 * idle);
     }
     this.rig.pose(this.stance, stroke, Math.min(1, crouch), riding && this.ride ? (-this.ride.dir as 1 | -1) : this.paddleSide, lookYaw, lookPitch, turn, idle);
@@ -620,11 +622,12 @@ export class Game {
       tp.set(this.x - d * 13, 6, this.z + 12);
       tl.set(this.x, 0.5, this.z);
     } else if (this.phase === 'start' && this.startView === 'surfer') {
-      // Three-quarter view from the front, the surfer slightly left of centre so the pickers fit beside them.
-      const dist = 3.6 * Math.max(1, 1.15 / this.camera.aspect);
+      // Three-quarter view from the front, knees up, the face near the top third so the pickers fit around it.
+      const portrait = Math.max(1, 0.95 / this.camera.aspect);
+      const dist = 2.1 * Math.pow(portrait, 0.6);
       const g = this.rig.group.position;
-      tp.set(this.x + 0.55 * dist, g.y + 1.55, this.z - 0.9 * dist);
-      tl.set(this.x - 0.08 * dist, g.y + 0.95, this.z + 0.1);
+      tp.set(this.x - 0.5 * dist, g.y + 1.65, this.z - 0.95 * dist);
+      tl.set(this.x + 0.04 * dist, g.y + 1.38 + 0.3 * (portrait - 1), this.z + 0.1);
     } else {
       tp.set(this.x, 6.5, this.z + 15);
       tl.set(this.x, 2.5, this.z - 26);
@@ -641,17 +644,17 @@ export class Game {
   setLabel(): string {
     if (this.ride) {
       const w = this.ride.wave;
-      return `Riding set wave ${w.setIndex}/${w.setSize} · ${localHeight(w, this.x, this.t).toFixed(1)} m here`;
+      return tr('Riding set wave {i}/{n} · {h} m here', { i: w.setIndex, n: w.setSize, h: localHeight(w, this.x, this.t).toFixed(1) });
     }
-    const tide = `tide ${tideRising(this.conditions, this.t) ? '↑' : '↓'}`;
+    const tide = `${tr('tide')} ${tideRising(this.conditions, this.t) ? '↑' : '↓'}`;
     const next = this.scheduler.nextSetWave(this.t, this.z);
     if (next) {
       const dist = Math.round(this.z - crestZAt(next, this.x, this.t));
-      const kind = next.hollow < 0.55 ? 'spilling' : next.hollow > 0.8 ? 'hollow' : '';
-      const extra = [kind, next.reform ? 'reform' : '', tide].filter(Boolean).join(' · ');
-      return `Set wave ${next.setIndex}/${next.setSize} · ${next.height.toFixed(1)} m · ${peelLabel(next)} · ${dist} m out · ${extra}`;
+      const kind = next.hollow < 0.55 ? tr('spilling') : next.hollow > 0.8 ? tr('hollow') : '';
+      const extra = [kind, next.reform ? tr('reform') : '', tide].filter(Boolean).join(' · ');
+      return tr('Set wave {i}/{n} · {h} m · {peel} · {dist} m out · {extra}', { i: next.setIndex, n: next.setSize, h: next.height.toFixed(1), peel: peelLabel(next), dist, extra });
     }
-    return `${this.scheduler.modeLabel === 'set' ? 'Set wave on the way' : 'Lull. Small waves, the set is coming.'} · ${tide}`;
+    return `${tr(this.scheduler.modeLabel === 'set' ? 'Set wave on the way' : 'Lull. Small waves, the set is coming.')} · ${tide}`;
   }
 }
 

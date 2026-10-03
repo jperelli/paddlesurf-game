@@ -8,6 +8,7 @@ import { loadQuality } from './quality';
 import { SettingsPanel } from './settings';
 import { StartScreen } from './start';
 import { TouchControls } from './touch';
+import { t } from './i18n';
 
 const app = document.querySelector<HTMLDivElement>('#app')!;
 app.innerHTML = `<canvas id="gl"></canvas><div id="hud"></div><div id="start"></div><div id="touch"></div><div id="settings"></div>`;
@@ -67,7 +68,7 @@ start.bindSeed(
     syncUrl();
     navigator.clipboard
       ?.writeText(location.href)
-      .then(() => start.seedNoteText('Link copied: same spot, conditions and waves for your friends'))
+      .then(() => start.seedNoteText(t('Link copied: same spot, conditions and waves for your friends')))
       .catch(() => start.seedNoteText(location.href));
   },
 );

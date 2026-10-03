@@ -1,5 +1,6 @@
 import type { Input } from './input';
 import type { SettingsPanel } from './settings';
+import { t } from './i18n';
 
 const STICK_R = 72;
 const DEAD = 0.18;
@@ -16,10 +17,10 @@ export class TouchControls {
     root.className = 'touch';
     root.innerHTML = `
       <div class="stick" id="stick"><div class="stick-ring"><span>▲</span><span>▶</span><span>▼</span><span>◀</span></div><div class="stick-knob"></div></div>
-      <button class="tbtn power" data-code="Space">POWER</button>
+      <button class="tbtn power" data-code="Space">${t('POWER')}</button>
       <div class="tmenu">
-        <button class="tbtn small" data-tap="KeyH">Hints</button>
-        <button class="tbtn small" data-settings>Settings</button>
+        <button class="tbtn small" data-tap="KeyH">${t('Hints')}</button>
+        <button class="tbtn small" data-settings>${t('Settings')}</button>
       </div>`;
 
     for (const btn of root.querySelectorAll<HTMLButtonElement>('button[data-code]')) {

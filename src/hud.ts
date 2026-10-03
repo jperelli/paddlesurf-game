@@ -1,5 +1,6 @@
 import type { EndReason } from './game';
 import { Leaderboard, loadPlayerName, savePlayerName, submitScore, type RunResult } from './scores';
+import { t } from './i18n';
 
 const END_TITLES: Record<EndReason, string> = {
   peak: 'Wipeout at the peak',
@@ -52,21 +53,21 @@ export class Hud {
       <div class="panel top-left">
         <div class="row"><span id="hud-phase" class="phase"></span><span id="hud-who" class="who"></span></div>
         <div id="hud-set" class="set"></div>
-        <div class="label">Tiredness</div>
+        <div class="label">${t('Tiredness')}</div>
         <div class="bar"><div id="hud-fatigue" class="fill"></div></div>
-        <div class="row stance-row"><span class="label">Stance</span>
+        <div class="row stance-row"><span class="label">${t('Stance')}</span>
           <span class="stance"><i data-s="-1"></i><i data-s="0"></i><i data-s="1"></i></span>
-          <span class="label small">back · centre · front</span></div>
-        <div class="row"><span>Score <b id="hud-score">0</b></span><span>Waves <b id="hud-caught">0</b></span><span id="hud-ride"></span></div>
+          <span class="label small">${t('back · centre · front')}</span></div>
+        <div class="row"><span>${t('Score')} <b id="hud-score">0</b></span><span>${t('Waves')} <b id="hud-caught">0</b></span><span id="hud-ride"></span></div>
       </div>
       <div id="hud-msg" class="msg"></div>
       <div id="hud-end" class="card hidden"></div>
       <div id="hud-board" class="card board-card hidden">
-        <div class="row board-head"><h2>High scores</h2><button id="hud-board-close" class="mini">Close</button></div>
-        <p class="small">Best runs: waves and points in one session without falling.</p>
+        <div class="row board-head"><h2>${t('High scores')}</h2><button id="hud-board-close" class="mini">${t('Close')}</button></div>
+        <p class="small">${t('Best runs: waves and points in one session without falling.')}</p>
         <div id="hud-board-list"></div>
       </div>
-      <div class="panel bottom controls keyboard-only">←↑↓→ paddle / steer · Space power · ↑↓ stance while riding · H hints · Esc settings</div>
+      <div class="panel bottom controls keyboard-only">${t('←↑↓→ paddle / steer · Space power · ↑↓ stance while riding · H hints · Esc settings')}</div>
     `;
     const q = (id: string) => root.querySelector<HTMLElement>(id)!;
     this.phaseEl = q('#hud-phase');
@@ -104,8 +105,8 @@ export class Hud {
       riding: '2 · Riding',
       ended: '3 · Wave over',
     };
-    this.phaseEl.textContent = phaseNames[s.phase] ?? s.phase;
-    this.whoEl.textContent = `${s.surfer} @ ${s.spot}`;
+    this.phaseEl.textContent = t(phaseNames[s.phase] ?? s.phase);
+    this.whoEl.textContent = `${s.surfer} @ ${t(s.spot)}`;
     if (!this.playerName) this.playerName = loadPlayerName(s.surfer);
     if (s.phase !== 'start') this.boardCard.classList.add('hidden');
     this.setEl.textContent = s.setLabel;
@@ -131,11 +132,11 @@ export class Hud {
   showEnd(reason: EndReason, points: number, rideTime: number, run: RunResult | null): void {
     const wipe = reason === 'peak' || reason === 'closeout' || reason === 'caught';
     this.endCard.innerHTML = `
-      <h2 class="${wipe ? 'bad' : 'good'}">${END_TITLES[reason]}</h2>
-      <p>${rideTime > 0 ? `Ride ${rideTime.toFixed(1)} s · ` : ''}<b>+${points}</b> points</p>`;
+      <h2 class="${wipe ? 'bad' : 'good'}">${t(END_TITLES[reason])}</h2>
+      <p>${rideTime > 0 ? t('Ride {s} s · ', { s: rideTime.toFixed(1) }) : ''}<b>+${points}</b> ${t('points')}</p>`;
     const go = document.createElement('p');
     go.className = 'go';
-    go.textContent = 'Press any key or tap to paddle back out';
+    go.textContent = t('Press any key or tap to paddle back out');
     if (!run) {
       this.endCard.appendChild(go);
       this.endCard.classList.remove('hidden');
@@ -144,10 +145,10 @@ export class Hud {
     if (this.nameGiven) {
       const p = document.createElement('p');
       p.className = 'run';
-      p.textContent = `Run over: ${run.waves} wave${run.waves === 1 ? '' : 's'} · ${run.points} points`;
+      p.textContent = t('Run over: {waves} {wave} · {points} points', { waves: run.waves, wave: t(run.waves === 1 ? 'wave' : 'waves'), points: run.points });
       this.endCard.appendChild(p);
       if (run.waves > 0) submitScore(this.playerName, run).catch(() => undefined);
-      go.textContent = 'Paddling back out';
+      go.textContent = t('Paddling back out');
       this.endCard.appendChild(go);
       this.endCard.classList.remove('hidden');
       this.quickRestart = true;
@@ -157,9 +158,9 @@ export class Hud {
     const form = document.createElement('form');
     form.className = 'run-form';
     form.innerHTML = `
-      <p class="run">Run over: <b>${run.waves}</b> wave${run.waves === 1 ? '' : 's'} · <b>${run.points}</b> points without falling</p>
-      <div class="row"><label>Your name <input id="hud-name" maxlength="24" autocomplete="off" spellcheck="false"></label>
-        <button type="submit">Save score</button><button type="button" id="hud-skip" class="mini">Skip</button></div>
+      <p class="run">${t('Run over: <b>{waves}</b> {wave} · <b>{points}</b> points without falling', { waves: run.waves, wave: t(run.waves === 1 ? 'wave' : 'waves'), points: run.points })}</p>
+      <div class="row"><label>${t('Your name')} <input id="hud-name" maxlength="24" autocomplete="off" spellcheck="false"></label>
+        <button type="submit">${t('Save score')}</button><button type="button" id="hud-skip" class="mini">${t('Skip')}</button></div>
       <p class="small" id="hud-run-note"></p>`;
     for (const ev of ['pointerdown', 'click', 'keydown', 'keyup', 'touchstart']) form.addEventListener(ev, (e) => e.stopPropagation());
     const nameEl = form.querySelector<HTMLInputElement>('#hud-name')!;
@@ -171,7 +172,7 @@ export class Hud {
       if (ranks) {
         const p = document.createElement('p');
         p.className = 'run';
-        p.textContent = `Saved for ${this.playerName}: #${ranks.day} today · #${ranks.week} this week · #${ranks.month} this month · #${ranks.all} all time`;
+        p.textContent = t('Saved for {name}: #{day} today · #{week} this week · #{month} this month · #{all} all time', { name: this.playerName, ...ranks });
         this.endCard.appendChild(p);
       }
       this.endCard.appendChild(this.endBoard.root);
@@ -188,12 +189,12 @@ export class Hud {
       this.playerName = name;
       this.nameGiven = true;
       savePlayerName(name);
-      note.textContent = 'Saving…';
+      note.textContent = t('Saving…');
       for (const b of form.querySelectorAll('button')) b.disabled = true;
       submitScore(name, run)
         .then((res) => finish(res.id, res.rank))
         .catch(() => {
-          note.textContent = 'Could not reach the server, score not saved.';
+          note.textContent = t('Could not reach the server, score not saved.');
           for (const b of form.querySelectorAll('button')) b.disabled = false;
         });
     });
