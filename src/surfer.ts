@@ -62,6 +62,10 @@ function approach(cur: number, target: number, k: number): number {
   return cur + (target - cur) * k;
 }
 
+function wrapAngle(a: number): number {
+  return ((((a + Math.PI) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI)) - Math.PI;
+}
+
 /**
  * Unit-height limb/torso volume from a radius profile: pairs of [y, r] with y in -0.5..0.5
  * (span() stretches it between two joints). Lathed so segments taper and bulge like a real
@@ -230,6 +234,11 @@ export class SurferRig {
   private yaw = 0;
   private hipY = 0.92;
   private lean = 0.2;
+  private twist = 0;
+  private headYaw = 0;
+  private headPitch = 0;
+  private ragdoll = 0;
+  private ragT = 0;
   private footL = new THREE.Vector3(-0.17, 0, 0.04);
   private footR = new THREE.Vector3(0.17, 0, -0.04);
   private grip = new THREE.Vector3(-0.2, 1.1, 0.2);
@@ -393,11 +402,16 @@ export class SurferRig {
    * @param strokePhase paddling animation phase (radians), 0 to freeze
    * @param crouch 0..1 (riding)
    * @param side which rail the paddle (and, when riding, the surfer's chest) faces: +1 right, -1 left
+   * @param lookYaw where the head looks, yaw relative to the board's nose (radians)
+   * @param lookPitch head pitch, positive looks down
+   * @param turn -1..1 turning input: shoulders wind into the turn, hips counter-rotate
    */
-  pose(stance: Stance, strokePhase: number, crouch: number, side: 1 | -1): void {
+  pose(stance: Stance, strokePhase: number, crouch: number, side: 1 | -1, lookYaw = 0, lookPitch = 0, turn = 0): void {
     const riding = strokePhase === 0 && crouch > 0;
     const k = 0.18;
     this.body.position.z = approach(this.body.position.z, stance * 0.45, k);
+    const rag = this.ragdoll;
+    const ra = this.ragT;
 
     let yaw: number;
     let hipY: number;
@@ -431,20 +445,37 @@ export class SurferRig {
         this.bladeTip.set(side * 0.6, -0.15, 0.7);
       }
     }
+    // Weight shift: a step forward leans the chest over the nose, a step back sits into the tail.
+    lean += 0.12 * stance;
+    if (stance < 0) hipY -= 0.06;
+    if (rag > 0) {
+      // Ragdoll: limbs flung out, paddle let go, everything loose and wobbling.
+      yaw = this.yaw;
+      hipY = 0.75 - 0.25 * rag;
+      lean = 0.6 + 0.15 * Math.sin(2.1 * ra);
+      this.footL.set(-0.45, 0.35 * rag, -0.35 + 0.1 * Math.sin(2 * ra));
+      this.footR.set(0.4, 0.15 * rag, 0.4 + 0.1 * Math.cos(1.7 * ra));
+      this.kneeHint.set(0, 1, 0.4);
+      this.grip.set(-0.75, hipY + 0.55 + 0.1 * Math.sin(2.6 * ra), -0.25);
+      this.bladeTip.set(0.8, hipY + 0.45, 0.45 + 0.1 * Math.sin(1.9 * ra));
+    }
     this.yaw = approach(this.yaw, yaw, k);
     this.hipY = approach(this.hipY, hipY, k);
     this.lean = approach(this.lean, lean, k);
+    this.twist = approach(this.twist, rag > 0 ? 0 : THREE.MathUtils.clamp(turn, -1, 1) * 0.45, k);
     this.body.rotation.y = this.yaw;
 
     const hips = _p.hips.set(0, this.hipY, -0.08 * crouch);
     this.pelvis.position.copy(hips);
-    this.pelvis.rotation.set(this.lean * 0.4, 0, 0);
+    // Hips counter-rotate against the shoulders in a turn.
+    const hipTw = -0.4 * this.twist;
+    this.pelvis.rotation.set(this.lean * 0.4, hipTw, 0);
 
     // Legs.
     for (let i = 0; i < 2; i++) {
       const sideX = i === 0 ? -1 : 1;
       const foot = i === 0 ? this.footL : this.footR;
-      const hip = _p.hip.set(sideX * HIP_X, this.hipY - 0.02, hips.z);
+      const hip = _p.hip.set(sideX * HIP_X * Math.cos(hipTw), this.hipY - 0.02, hips.z - sideX * HIP_X * Math.sin(hipTw));
       const ankle = _p.ankle.set(foot.x, 0.08, foot.z);
       const hint = _p.hint.copy(this.kneeHint).addScaledVector(_p.tmp.set(sideX, 0, 0), 0.3);
       const knee = joint(hip, ankle, THIGH, SHIN, hint, _p.knee);
@@ -461,9 +492,15 @@ export class SurferRig {
     const shoulders = _p.shoulders.set(0, this.hipY + TORSO * Math.cos(this.lean), hips.z + TORSO * Math.sin(this.lean));
     span(this.torso, hips, shoulders);
     this.torso.scale.y = TORSO;
+    this.torso.rotateY(0.6 * this.twist);
     const neckDir = _p.tmp.subVectors(shoulders, hips).normalize();
     this.head.position.copy(shoulders).addScaledVector(neckDir, 0.2).add(_p.tmp2.set(0, 0.03, 0.03));
-    this.head.rotation.x = -0.12 - 0.25 * crouch;
+    // Head: eyes on the wave, within what a neck can do.
+    const wantYaw = rag > 0 ? 0.5 * Math.sin(1.7 * ra) : THREE.MathUtils.clamp(wrapAngle(lookYaw - this.yaw), -1.25, 1.25);
+    const wantPitch = rag > 0 ? -0.5 * rag : -0.12 - 0.25 * crouch + lookPitch;
+    this.headYaw = approach(this.headYaw, wantYaw, 0.12);
+    this.headPitch = approach(this.headPitch, wantPitch, 0.12);
+    this.head.rotation.set(this.headPitch, this.headYaw + 0.6 * this.twist, 0, 'YXZ');
     span(this.neck, _p.tmp2.copy(shoulders).addScaledVector(neckDir, -0.04), _p.tmp.copy(this.head.position).addScaledVector(neckDir, -0.07));
 
     // Paddle: its local +y runs from the T-grip down the shaft to the blade.
@@ -472,12 +509,18 @@ export class SurferRig {
     const dir = _p.tmp.subVectors(tip, grip).normalize();
     this.paddle.position.copy(grip);
     this.paddle.quaternion.setFromUnitVectors(UP, dir);
+    if (rag > 0) {
+      // The paddle gets away and tumbles off to the side.
+      this.paddle.position.add(_p.tmp2.set(1.4 * rag, -0.35 * rag + 0.05 * Math.sin(3 * ra), 0.6 * rag));
+      this.paddle.rotateOnAxis(UP, 2.5 * ra);
+      this.paddle.rotateX(0.9 * rag);
+    }
     const lowHand = _p.lowHand.copy(grip).addScaledVector(dir, 0.72);
 
     // Arms: the hand on the paddle side holds the shaft, the other one the grip.
     for (let i = 0; i < 2; i++) {
       const sideX = i === 0 ? -1 : 1;
-      const shoulder = _p.shoulder.set(sideX * SHOULDER_X, shoulders.y - 0.01, shoulders.z);
+      const shoulder = _p.shoulder.set(sideX * SHOULDER_X * Math.cos(this.twist), shoulders.y - 0.01, shoulders.z - sideX * SHOULDER_X * Math.sin(this.twist));
       const target = sideX === side ? lowHand : grip;
       const hand = _p.hand.copy(target);
       const hint = _p.hint.set(sideX * 0.8, -0.6, -0.2);
@@ -487,18 +530,29 @@ export class SurferRig {
       this.shoulderJoints[i].position.copy(shoulder);
       this.elbowJoints[i].position.copy(elbow);
       this.hands[i].position.copy(hand);
-      this.hands[i].quaternion.copy(this.paddle.quaternion);
+      if (rag > 0) this.hands[i].quaternion.setFromUnitVectors(UP, _p.tmp2.subVectors(hand, elbow).normalize());
+      else this.hands[i].quaternion.copy(this.paddle.quaternion);
     }
   }
 
-  setWipeout(progress: number): void {
-    this.body.rotation.x = -progress * 1.6;
-    this.body.position.y = BOARD_THICK + 0.05 - progress * 0.8;
-    this.body.position.x = progress * 1.2;
-    this.board.rotation.z = progress * 0.9;
+  /**
+   * @param progress 0..1 how far into the fall
+   * @param age seconds since the wipeout started (drives the tumbling and bobbing)
+   */
+  setWipeout(progress: number, age = progress): void {
+    this.ragdoll = progress;
+    this.ragT = age;
+    const wob = progress * 0.15 * Math.sin(3.1 * age);
+    this.body.rotation.set(-progress * 1.9 + wob, this.yaw + progress * 0.9, progress * 0.7 + 0.1 * progress * Math.sin(2.3 * age));
+    this.body.position.y = BOARD_THICK + 0.05 - progress * 0.45 + 0.04 * progress * Math.sin(2 * age);
+    this.body.position.x = progress * 1.3;
+    this.board.rotation.z = progress * 0.9 + 0.08 * progress * Math.sin(2.7 * age);
+    this.board.rotation.x = 0.15 * progress * Math.sin(1.9 * age);
   }
 
   resetWipeout(): void {
+    this.ragdoll = 0;
+    this.ragT = 0;
     this.body.rotation.set(0, this.yaw, 0);
     this.body.position.set(0, BOARD_THICK + 0.05, this.body.position.z);
     this.board.rotation.set(0, 0, 0);

@@ -394,7 +394,7 @@ export class Game {
     const age = this.t - e.t;
     const wipeout = WIPEOUTS.includes(e.reason);
     if (wipeout) {
-      this.rig.setWipeout(Math.min(1, age / 0.6));
+      this.rig.setWipeout(Math.min(1, age / 0.6), age);
       if (e.wave) this.z += e.wave.speed * 0.5 * dt;
       this.vx *= 0.9;
     } else {
@@ -448,7 +448,22 @@ export class Game {
     const riding = this.phase === 'riding';
     const crouch = riding ? 0.6 + 0.4 * Math.abs(this.ride?.lean ?? 0) / 0.35 : 0;
     const stroke = this.phase === 'waiting' ? this.strokePhase : 0;
-    this.rig.pose(this.stance, stroke, Math.min(1, crouch), riding && this.ride ? (-this.ride.dir as 1 | -1) : this.paddleSide);
+    // Eyes on the wave: down the line at the breaking section while riding, at the next set wave while waiting.
+    let lookYaw = 0;
+    let lookPitch = 0;
+    let turn = 0;
+    if (riding && this.ride) {
+      lookYaw = Math.atan2(this.ride.dir * 6, -3) - this.heading;
+      lookPitch = -0.15;
+      turn = -this.ride.lean / 0.35;
+    } else if (this.phase === 'waiting') {
+      const next = this.scheduler.nextSetWave(t, this.z);
+      if (next) {
+        lookYaw = Math.atan2(next.peakX - this.x, crestZAt(next, this.x, t) - this.z) - this.heading;
+        lookPitch = 0.05;
+      }
+    }
+    this.rig.pose(this.stance, stroke, Math.min(1, crouch), riding && this.ride ? (-this.ride.dir as 1 | -1) : this.paddleSide, lookYaw, lookPitch, turn);
   }
 
   private updateHints(): void {
