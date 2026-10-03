@@ -31,6 +31,10 @@ On phones and tablets an on-screen joystick (drag the knob, diagonals work), POW
 
 The colours and the player are taken from Julian's reference photo and baked in: olive-green wave face, grey-blue deep water, a paddler in a black full wetsuit crouched side-on to the wave, and a red SUP with an orange striped nose and a yellow-green tail. Nothing has to be loaded at runtime; `src/palette.ts` holds the sampled colours and `src/surfer.ts` builds the board deck and the paddler from them.
 
+## Conditions
+
+Every session rolls the day's conditions, shown in the first HUD message: swell arriving straight or at an angle (the crest line is rotated, so one end of the wave arrives first), a longshore current that slowly drifts you sideways while you wait, and wind. Offshore wind tears a plume of spindrift off the crest of a wave that is standing up and carries it out to sea; onshore or cross wind blows the spray the other way. The whitewater edge is ragged and wanders, and the foam behind it thins into patches. `src/conditions.ts` holds the rolls.
+
 ## Spots (levels)
 
 Pick the spot on the start screen (or in settings):
@@ -44,6 +48,8 @@ Surfers (name + colours) and spots (name, wave height range, how fast it peels, 
 ## Code map
 
 - `src/wave.ts`: set scheduler, wave parameters, breaking fronts, height field
+- `src/conditions.ts`: swell angle, current and wind for the session
+- `src/lip.ts`: the pitching lip, landing spray and wind-blown spindrift
 - `src/sea.ts`: the sea mesh (vertex colours for face / deep water / foam)
 - `src/surfer.ts`: paddler rig (photo-based board deck, crouched riding pose, paddle)
 - `src/game.ts`: the four phases, takeoff rules, ride dynamics, camera

@@ -12,12 +12,15 @@ const RAIL = 0.05;
 const BOARD_CORE = 0.03;
 const BOARD_THICK = BOARD_CORE + 2 * RAIL;
 
-// Body segment lengths (metres) for a ~1.78 m paddler.
-const THIGH = 0.44;
-const SHIN = 0.44;
-const TORSO = 0.55;
-const UPPER_ARM = 0.3;
-const FOREARM = 0.28;
+// Body segment lengths (metres) for a ~1.78 m paddler, from Richer's 7.5-head average figure
+// (head unit 0.237 m: femur 2 heads, lower leg 2 heads, shoulders 2 heads wide, hips ~1.3).
+const THIGH = 0.46;
+const SHIN = 0.43;
+const TORSO = 0.57;
+const UPPER_ARM = 0.33;
+const FOREARM = 0.27;
+const HIP_X = 0.1;
+const SHOULDER_X = 0.19;
 const SHAFT = 1.95;
 const BLADE_LEN = 0.46;
 
@@ -57,6 +60,21 @@ const _v3 = new THREE.Vector3();
 
 function approach(cur: number, target: number, k: number): number {
   return cur + (target - cur) * k;
+}
+
+/**
+ * Unit-height limb/torso volume from a radius profile: pairs of [y, r] with y in -0.5..0.5
+ * (span() stretches it between two joints). Lathed so segments taper and bulge like a real
+ * limb instead of reading as a pipe. scaleZ flattens the cross-section (torso, hands).
+ */
+function volume(profile: [number, number][], mat: THREE.Material, scaleZ = 1): THREE.Mesh {
+  const pts = profile.map(([y, r]) => new THREE.Vector2(r, y));
+  const geo = new THREE.LatheGeometry(pts, 18);
+  if (scaleZ !== 1) {
+    geo.scale(1, 1, scaleZ);
+    geo.computeVertexNormals();
+  }
+  return new THREE.Mesh(geo, mat);
 }
 
 /** Paints the deck: red board, orange nose with white stripes, grey pad, yellow-green tail (like the photo). */
@@ -188,12 +206,15 @@ export class SurferRig {
     fin: THREE.MeshStandardMaterial;
     paddle: THREE.MeshStandardMaterial;
     blade: THREE.MeshStandardMaterial;
+    mouth: THREE.MeshStandardMaterial;
   };
 
   private pelvis: THREE.Mesh;
   private torso: THREE.Mesh;
   private neck: THREE.Mesh;
   private head = new THREE.Group();
+  private hipJoints: [THREE.Mesh, THREE.Mesh];
+  private ankleJoints: [THREE.Mesh, THREE.Mesh];
   private shoulderJoints: [THREE.Mesh, THREE.Mesh];
   private elbowJoints: [THREE.Mesh, THREE.Mesh];
   private kneeJoints: [THREE.Mesh, THREE.Mesh];
@@ -233,52 +254,93 @@ export class SurferRig {
       fin: m('#1d2328', 0.45),
       paddle: m(palette.paddle, 0.45),
       blade: m(palette.blade, 0.35),
+      mouth: m('#6e4035', 0.7),
     };
 
     this.board.add(new THREE.Mesh(boardGeometry(), this.mats.board), new THREE.Mesh(finGeometry(), this.mats.fin));
 
-    const cyl = (r: number, mat: THREE.Material) => new THREE.Mesh(new THREE.CylinderGeometry(r, r * 0.85, 1, 12), mat);
-    const ball = (r: number, mat: THREE.Material) => new THREE.Mesh(new THREE.SphereGeometry(r, 12, 10), mat);
-    this.thighs = [cyl(0.085, this.mats.wetsuit), cyl(0.085, this.mats.wetsuit)];
-    this.shins = [cyl(0.065, this.mats.wetsuit), cyl(0.065, this.mats.wetsuit)];
-    this.upperArms = [cyl(0.055, this.mats.wetsuit), cyl(0.055, this.mats.wetsuit)];
-    this.forearms = [cyl(0.045, this.mats.wetsuit), cyl(0.045, this.mats.wetsuit)];
-    this.shoulderJoints = [ball(0.072, this.mats.wetsuit), ball(0.072, this.mats.wetsuit)];
-    this.elbowJoints = [ball(0.05, this.mats.wetsuit), ball(0.05, this.mats.wetsuit)];
-    this.kneeJoints = [ball(0.072, this.mats.wetsuit), ball(0.072, this.mats.wetsuit)];
-    const footGeo = new THREE.CapsuleGeometry(0.05, 0.16, 4, 10);
+    const ball = (r: number, mat: THREE.Material) => new THREE.Mesh(new THREE.SphereGeometry(r, 14, 12), mat);
+    const ws = this.mats.wetsuit;
+    const pair = (make: () => THREE.Mesh): [THREE.Mesh, THREE.Mesh] => [make(), make()];
+    // Profiles run from the proximal joint (-0.5) to the distal one (0.5).
+    this.thighs = pair(() => volume([[-0.5, 0.082], [-0.42, 0.095], [-0.1, 0.088], [0.3, 0.074], [0.5, 0.064]], ws));
+    this.shins = pair(() => volume([[-0.5, 0.062], [-0.3, 0.074], [-0.05, 0.062], [0.3, 0.046], [0.5, 0.038]], ws));
+    this.upperArms = pair(() => volume([[-0.5, 0.062], [-0.25, 0.056], [0.2, 0.048], [0.5, 0.04]], ws));
+    this.forearms = pair(() => volume([[-0.5, 0.042], [-0.3, 0.05], [0.1, 0.04], [0.5, 0.028]], ws));
+    this.hipJoints = pair(() => ball(0.088, ws));
+    this.shoulderJoints = pair(() => {
+      const d = ball(0.068, ws);
+      d.scale.set(1, 1.12, 0.95);
+      return d;
+    });
+    this.elbowJoints = pair(() => ball(0.044, ws));
+    this.kneeJoints = pair(() => ball(0.064, ws));
+    this.ankleJoints = pair(() => ball(0.04, ws));
+    const footGeo = new THREE.CapsuleGeometry(0.045, 0.17, 4, 10);
     footGeo.rotateX(Math.PI / 2);
-    footGeo.scale(1, 0.55, 1);
-    this.feet = [new THREE.Mesh(footGeo, this.mats.wetsuit), new THREE.Mesh(footGeo, this.mats.wetsuit)];
-    const hand = () => {
-      const h = ball(0.046, this.mats.skin);
-      h.scale.set(1, 0.65, 1.3);
+    footGeo.scale(1, 0.5, 1);
+    footGeo.translate(0, 0, 0.03);
+    this.feet = pair(() => new THREE.Mesh(footGeo, ws));
+    this.hands = pair(() => {
+      const h = ball(0.045, this.mats.skin);
+      h.scale.set(1, 0.5, 1.9);
       return h;
-    };
-    this.hands = [hand(), hand()];
+    });
 
-    this.pelvis = ball(1, this.mats.wetsuit);
-    this.pelvis.scale.set(0.19, 0.13, 0.12);
-    this.torso = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.145, 1, 16), this.mats.wetsuit);
-    this.torso.scale.set(1.1, TORSO, 0.62);
-    this.neck = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.05, 1, 10), this.mats.skin);
+    // Torso: glutes/pelvis widening to the trochanters, a narrower waist at the navel, the
+    // ribcage flaring to the chest, then the trapezius sloping into the neck. -0.5 is the hip
+    // centre, 0.5 the shoulder line; the cross-section is an ellipse (deeper than it is wide
+    // is wrong for a chest, so z is flattened to 0.62).
+    this.torso = volume(
+      [
+        [-0.56, 0.1],
+        [-0.5, 0.148],
+        [-0.42, 0.158],
+        [-0.25, 0.15],
+        [-0.08, 0.14],
+        [0.1, 0.162],
+        [0.3, 0.18],
+        [0.42, 0.176],
+        [0.5, 0.152],
+        [0.57, 0.09],
+        [0.6, 0.0],
+      ],
+      ws,
+      0.62,
+    );
+    this.pelvis = ball(1, ws);
+    this.pelvis.scale.set(0.165, 0.12, 0.115);
+    this.neck = volume([[-0.5, 0.058], [-0.1, 0.05], [0.5, 0.05]], this.mats.skin);
 
-    const skull = ball(0.105, this.mats.skin);
-    skull.scale.set(0.92, 1.1, 1);
-    const hair = new THREE.Mesh(new THREE.SphereGeometry(0.11, 18, 14, 0, Math.PI * 2, 0, Math.PI * 0.58), this.mats.hair);
-    hair.scale.set(0.95, 1.1, 1.02);
-    hair.rotation.x = -0.45;
-    const nose = ball(0.02, this.mats.skin);
-    nose.position.set(0, -0.015, 0.1);
-    const earL = ball(0.022, this.mats.skin);
-    earL.position.set(-0.095, -0.01, 0);
-    const earR = ball(0.022, this.mats.skin);
-    earR.position.set(0.095, -0.01, 0);
-    const eyeL = ball(0.011, this.mats.hair);
-    eyeL.position.set(-0.035, 0.015, 0.093);
-    const eyeR = ball(0.011, this.mats.hair);
-    eyeR.position.set(0.035, 0.015, 0.093);
-    this.head.add(skull, hair, nose, earL, earR, eyeL, eyeR);
+    // Head: one head unit (0.237 m) from crown to chin, cranium plus a narrower jaw.
+    const skull = ball(0.1, this.mats.skin);
+    skull.scale.set(0.8, 1.0, 0.9);
+    const jaw = ball(0.07, this.mats.skin);
+    jaw.scale.set(0.9, 0.8, 0.95);
+    jaw.position.set(0, -0.08, 0.012);
+    const hair = new THREE.Mesh(new THREE.SphereGeometry(0.106, 18, 14, 0, Math.PI * 2, 0, Math.PI * 0.6), this.mats.hair);
+    hair.scale.set(0.84, 1.02, 0.95);
+    hair.rotation.x = -0.4;
+    const nose = ball(0.016, this.mats.skin);
+    nose.scale.set(0.8, 1.4, 1);
+    nose.position.set(0, -0.04, 0.09);
+    const earL = ball(0.02, this.mats.skin);
+    earL.scale.set(0.5, 1.2, 0.9);
+    earL.position.set(-0.08, -0.02, 0);
+    const earR = earL.clone();
+    earR.position.x = 0.08;
+    const eyeL = ball(0.01, this.mats.hair);
+    eyeL.position.set(-0.03, -0.005, 0.082);
+    const eyeR = eyeL.clone();
+    eyeR.position.x = 0.03;
+    const browGeo = new THREE.BoxGeometry(0.03, 0.006, 0.01);
+    const browL = new THREE.Mesh(browGeo, this.mats.hair);
+    browL.position.set(-0.032, 0.02, 0.085);
+    const browR = browL.clone();
+    browR.position.x = 0.032;
+    const mouth = new THREE.Mesh(new THREE.BoxGeometry(0.036, 0.005, 0.008), this.mats.mouth);
+    mouth.position.set(0, -0.095, 0.075);
+    this.head.add(skull, jaw, hair, nose, earL, earR, eyeL, eyeR, browL, browR, mouth);
 
     const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, SHAFT, 10), this.mats.paddle);
     shaft.position.y = SHAFT / 2;
@@ -294,6 +356,8 @@ export class SurferRig {
       this.torso,
       this.neck,
       this.head,
+      ...this.hipJoints,
+      ...this.ankleJoints,
       ...this.shoulderJoints,
       ...this.elbowJoints,
       ...this.kneeJoints,
@@ -380,13 +444,15 @@ export class SurferRig {
     for (let i = 0; i < 2; i++) {
       const sideX = i === 0 ? -1 : 1;
       const foot = i === 0 ? this.footL : this.footR;
-      const hip = _p.hip.set(sideX * 0.12, this.hipY, hips.z);
+      const hip = _p.hip.set(sideX * HIP_X, this.hipY - 0.02, hips.z);
       const ankle = _p.ankle.set(foot.x, 0.08, foot.z);
       const hint = _p.hint.copy(this.kneeHint).addScaledVector(_p.tmp.set(sideX, 0, 0), 0.3);
       const knee = joint(hip, ankle, THIGH, SHIN, hint, _p.knee);
       span(this.thighs[i], hip, knee);
       span(this.shins[i], knee, ankle);
+      this.hipJoints[i].position.copy(hip);
       this.kneeJoints[i].position.copy(knee);
+      this.ankleJoints[i].position.copy(ankle);
       this.feet[i].position.set(foot.x, 0.035, foot.z);
       this.feet[i].rotation.y = -this.yaw;
     }
@@ -396,9 +462,9 @@ export class SurferRig {
     span(this.torso, hips, shoulders);
     this.torso.scale.y = TORSO;
     const neckDir = _p.tmp.subVectors(shoulders, hips).normalize();
-    this.head.position.copy(shoulders).addScaledVector(neckDir, 0.21).add(_p.tmp2.set(0, 0.04, 0.03));
+    this.head.position.copy(shoulders).addScaledVector(neckDir, 0.2).add(_p.tmp2.set(0, 0.03, 0.03));
     this.head.rotation.x = -0.12 - 0.25 * crouch;
-    span(this.neck, _p.tmp2.copy(shoulders).addScaledVector(neckDir, -0.03), this.head.position);
+    span(this.neck, _p.tmp2.copy(shoulders).addScaledVector(neckDir, -0.04), _p.tmp.copy(this.head.position).addScaledVector(neckDir, -0.07));
 
     // Paddle: its local +y runs from the T-grip down the shaft to the blade.
     const grip = this.grip;
@@ -411,7 +477,7 @@ export class SurferRig {
     // Arms: the hand on the paddle side holds the shaft, the other one the grip.
     for (let i = 0; i < 2; i++) {
       const sideX = i === 0 ? -1 : 1;
-      const shoulder = _p.shoulder.set(sideX * 0.21, shoulders.y, shoulders.z);
+      const shoulder = _p.shoulder.set(sideX * SHOULDER_X, shoulders.y - 0.01, shoulders.z);
       const target = sideX === side ? lowHand : grip;
       const hand = _p.hand.copy(target);
       const hint = _p.hint.set(sideX * 0.8, -0.6, -0.2);

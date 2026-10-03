@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { BEACH_Z, brokenAmount, chopAt, crestZ, localHeight, profile, steepness, type SpotConfig, type Wave } from './wave';
+import { BEACH_Z, brokenAmount, chopAt, crestSkew, crestZ, localHeight, profile, steepness, type SpotConfig, type Wave } from './wave';
 import type { WaterPalette } from './palette';
 import { WAKE_LIFE, type WakePoint } from './wake';
 import { tileableFbm } from './noise';
@@ -10,6 +10,27 @@ const Z_MIN = -100;
 const Z_MAX = BEACH_Z + 10;
 const STEP = 1;
 const UV_SCALE = 1 / 6;
+
+/** Tileable greyscale bubble/streak pattern that breaks up the foam colour. */
+function foamNoiseMap(size = 256): THREE.DataTexture {
+  const a = tileableFbm(53, 4, 5);
+  const b = tileableFbm(71, 12, 3);
+  const data = new Uint8Array(size * size * 4);
+  for (let j = 0; j < size; j++) {
+    for (let i = 0; i < size; i++) {
+      const u = i / size;
+      const v = j / size;
+      const n = 0.65 * a(u, v) + 0.35 * b(u, v);
+      const k = (j * size + i) * 4;
+      data[k] = data[k + 1] = data[k + 2] = Math.round(255 * Math.min(1, Math.max(0, n)));
+      data[k + 3] = 255;
+    }
+  }
+  const tex = new THREE.DataTexture(data, size, size);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.needsUpdate = true;
+  return tex;
+}
 
 /** Tileable ripple normal map from a noise heightfield plus a little directional chop, so it does not read as a lattice. */
 function rippleNormalMap(size = 256): THREE.DataTexture {
@@ -118,11 +139,21 @@ export class Sea {
     });
     material.onBeforeCompile = (shader) => {
       shader.uniforms.uTime = this.timeUniform;
+      shader.uniforms.foamMap = { value: foamNoiseMap() };
       shader.vertexShader = shader.vertexShader
         .replace('#include <common>', '#include <common>\nattribute float foam;\nvarying float vFoam;')
         .replace('#include <begin_vertex>', '#include <begin_vertex>\nvFoam = foam;');
       shader.fragmentShader = shader.fragmentShader
-        .replace('#include <common>', '#include <common>\nuniform float uTime;\nvarying float vFoam;')
+        .replace('#include <common>', '#include <common>\nuniform float uTime;\nuniform sampler2D foamMap;\nvarying float vFoam;')
+        .replace(
+          '#include <color_fragment>',
+          `#include <color_fragment>
+	float fpA = texture2D( foamMap, vNormalMapUv * 1.9 + uTime * vec2( 0.012, 0.02 ) ).r;
+	float fpB = texture2D( foamMap, vNormalMapUv * 6.1 - uTime * vec2( 0.03, 0.017 ) ).r;
+	float foamPat = smoothstep( 0.3, 0.75, 0.6 * fpA + 0.4 * fpB );
+	float thin = vFoam * ( 0.35 + 0.65 * ( 1.0 - vFoam ) );
+	diffuseColor.rgb *= mix( 1.0, 0.62 + 0.38 * foamPat, thin );`,
+        )
         .replace('vec3 mapN = texture2D( normalMap, vNormalMapUv ).xyz * 2.0 - 1.0;', RIPPLE_NORMALS)
         .replace('float roughnessFactor = roughness;', 'float roughnessFactor = mix( roughness, 0.95, vFoam );');
     };
@@ -170,16 +201,16 @@ export class Sea {
     const nx = this.nx;
     const nz = this.nz;
     const czs = waves.map((w) => crestZ(w, t));
+    const tans = waves.map((w) => Math.tan(w.angle));
+    const skews = waves.map((w) => crestSkew(w, X_MAX));
     const active: number[] = [];
-    const ds: number[] = new Array(waves.length).fill(0);
     for (let j = 0; j < nz; j++) {
       const z = Z_MIN + j * STEP;
       active.length = 0;
       for (let wi = 0; wi < waves.length; wi++) {
         const d = z - czs[wi];
         const L = waves[wi].length;
-        if (d > 3.5 * L || d < -5 * L) continue;
-        ds[wi] = d;
+        if (d > 3.5 * L + skews[wi] || d < -5 * L - skews[wi]) continue;
         active.push(wi);
       }
       const shoreFoam = z > 42 ? Math.min(0.6, (z - 42) / 25) : 0;
@@ -196,8 +227,9 @@ export class Sea {
         let shade = 0;
         for (const wi of active) {
           const w = waves[wi];
-          const d = ds[wi];
           const L = w.length;
+          const d = z - czs[wi] - tans[wi] * (x - w.peakX);
+          if (d > 3.5 * L || d < -5 * L) continue;
           const hw = localHeight(w, x, t);
           const b = brokenAmount(w, x, t, spot);
           const st = steepness(w, x, t, spot);
@@ -216,11 +248,15 @@ export class Sea {
           }
           if (b > 0) {
             let front: number;
-            if (d >= -0.3 * L && d <= 1.3 * L) front = 1;
-            else if (d > 1.3 * L) front = Math.exp(-((d - 1.3 * L) ** 2) / (0.08 * L * L));
+            const fe = L * (1.3 + 0.35 * Math.sin(1.7 * x + 3 * t) + 0.2 * Math.sin(4.3 * x - 2.2 * t));
+            const fb = -L * (0.3 + 0.18 * Math.sin(2.1 * x + 1.3 * t) + 0.1 * Math.sin(5.3 * x - 2 * t));
+            if (d >= fb && d <= fe) front = 1;
+            else if (d > fe) front = Math.exp(-((d - fe) ** 2) / (0.1 * L * L));
             else {
-              const back = (d + 0.3 * L) / (2.0 * L);
-              front = 0.55 * Math.exp(-back * back) * (0.7 + 0.3 * Math.sin(1.3 * x + 0.9 * d + 2 * t));
+              // Trailing foam behind the whitewater: thins out and breaks into patches.
+              const back = (fb - d) / (1.4 * L);
+              const patch = 0.5 + 0.5 * Math.sin(1.3 * x + 0.9 * d + 2 * t) * Math.sin(0.6 * x - 1.1 * d + 0.7 * t);
+              front = Math.exp(-back * back) * (1 - 0.45 * Math.min(1, back * 3) * patch);
             }
             foamAmt = Math.max(foamAmt, b * front);
             if (d > 0.4 * L && d < 2.2 * L) shade = Math.max(shade, b * 0.55 * Math.min(1, (d - 0.4 * L) / (0.9 * L)));

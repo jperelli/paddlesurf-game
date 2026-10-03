@@ -11,7 +11,7 @@ import {
   WaveScheduler,
   brokenAmount,
   brokenHalfWidth,
-  crestZ,
+  crestZAt,
   faceLength,
   localHeight,
   peelLabel,
@@ -23,6 +23,7 @@ import {
 } from './wave';
 import type { Spot, Surfer } from './roster';
 import type { Hud } from './hud';
+import { describeConditions, rollConditions, type Conditions } from './conditions';
 
 export type Phase = 'start' | 'waiting' | 'riding' | 'ended';
 export type EndReason = 'peak' | 'closeout' | 'caught' | 'overback' | 'faded';
@@ -68,6 +69,7 @@ export class Game {
 
   phase: Phase = 'start';
   t = 0;
+  conditions: Conditions = rollConditions();
   spot: Spot;
   surfer: Surfer;
   hint = true;
@@ -115,7 +117,8 @@ export class Game {
     this.scene.add(this.sea.mesh, this.sea.beach, this.sea.far);
     this.lips = new Lips(spot.water);
     this.scene.add(this.lips.group);
-    this.scheduler = new WaveScheduler(spot);
+    this.scheduler = new WaveScheduler(spot, this.conditions);
+    this.lips.setConditions(this.conditions);
 
     this.rig = new SurferRig(surfer.palette);
     this.scene.add(this.rig.group);
@@ -166,7 +169,9 @@ export class Game {
 
   start(): void {
     this.phase = 'waiting';
-    this.scheduler.reset();
+    this.conditions = rollConditions();
+    this.scheduler.reset(this.conditions);
+    this.lips.setConditions(this.conditions);
     this.t = 0;
     this.score = 0;
     this.caught = 0;
@@ -180,7 +185,7 @@ export class Game {
     this.heading = Math.PI;
     this.stance = 0;
     this.rig.resetWipeout();
-    this.hud.flash('Paddle into position and wait for the set.', 4000);
+    this.hud.flash(`Paddle into position and wait for the set. Today: ${describeConditions(this.conditions)}.`, 6000);
   }
 
   update(dt: number): void {
@@ -240,7 +245,7 @@ export class Game {
     const k = Math.min(1, 3.2 * dt);
     this.vx += (tx - this.vx) * k;
     this.vz += (tz - this.vz) * k;
-    this.x = THREE.MathUtils.clamp(this.x + this.vx * dt, -70, 70);
+    this.x = THREE.MathUtils.clamp(this.x + (this.vx + this.conditions.current) * dt, -70, 70);
     this.z = THREE.MathUtils.clamp(this.z + this.vz * dt, -48, 24);
 
     const speed = Math.hypot(this.vx, this.vz);
@@ -256,7 +261,7 @@ export class Game {
     }
 
     for (const w of this.scheduler.waves) {
-      if (!w.passedSurfer && crestZ(w, this.t) >= this.z) {
+      if (!w.passedSurfer && crestZAt(w, this.x, this.t) >= this.z) {
         w.passedSurfer = true;
         this.evaluateTakeoff(w);
         if (this.phase !== 'waiting') break;
@@ -290,7 +295,7 @@ export class Game {
         this.hud.flash('In the pocket but paddling into the peak. Wave lost.');
         return;
       }
-      if (crestZ(w, t) < BREAK_Z - 4) {
+      if (crestZAt(w, this.x, t) < BREAK_Z - 4) {
         this.hud.flash('Too early, it was not steep enough yet.');
         return;
       }
@@ -340,9 +345,9 @@ export class Game {
     if (r.rel > 1) drel -= (r.rel - 1) * 1.6;
     r.rel += drel * dt;
     this.x += vx * dt;
-    this.z = crestZ(w, t) + r.rel * fl;
+    this.z = crestZAt(w, this.x, t) + r.rel * fl;
     this.vx = vx;
-    this.vz = w.speed + drel * fl;
+    this.vz = w.speed + drel * fl + Math.tan(w.angle) * vx;
     this.heading = lerpAngle(this.heading, Math.atan2(this.vx, this.vz), Math.min(1, 8 * dt));
     const targetLean = -turnIn * r.dir * 0.35 * stanceTurn;
     r.lean += (targetLean - r.lean) * Math.min(1, 6 * dt);
@@ -411,7 +416,7 @@ export class Game {
     this.vz = 0;
     this.heading = Math.PI;
     this.stance = 0;
-    for (const w of this.scheduler.waves) if (crestZ(w, this.t) >= this.z - 2) w.passedSurfer = true;
+    for (const w of this.scheduler.waves) if (crestZAt(w, this.x, this.t) >= this.z - 2) w.passedSurfer = true;
     this.hud.flash('Back in the lineup.', 2500);
   }
 
@@ -452,14 +457,13 @@ export class Game {
       this.hintGroup.visible = false;
       return;
     }
-    const cz = crestZ(w, this.t);
     const half = brokenHalfWidth(w, this.t, this.spot);
     const topY = localHeight(w, w.peakX, this.t) + 1.2;
-    this.peakMarker.position.set(w.peakX, topY, cz);
+    this.peakMarker.position.set(w.peakX, topY, crestZAt(w, w.peakX, this.t));
     for (let i = 0; i < 2; i++) {
       const side = i === 0 ? 1 : -1;
       const px = w.peakX + side * (half + POCKET_WIDTH / 2);
-      const pz = cz + 0.5;
+      const pz = crestZAt(w, px, this.t) + 0.5;
       const p = seaPointAt(this.scheduler.waves, px, pz, this.t, this.spot, this.surfPt);
       this.pocketMarkers[i].position.set(px, p.y + 0.15, p.z);
       this.pocketMarkers[i].visible = w.peel === 0 || w.peel === side;
@@ -496,7 +500,7 @@ export class Game {
     }
     const next = this.scheduler.nextSetWave(this.t, this.z);
     if (next) {
-      const dist = Math.round(this.z - crestZ(next, this.t));
+      const dist = Math.round(this.z - crestZAt(next, this.x, this.t));
       return `Set wave ${next.setIndex}/${next.setSize} · ${next.height.toFixed(1)} m · ${peelLabel(next)} · ${dist} m out`;
     }
     return this.scheduler.modeLabel === 'set' ? 'Set wave on the way' : 'Lull. Small waves, the set is coming.';

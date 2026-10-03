@@ -1,5 +1,7 @@
 // Wave model: sets, peak/pockets, breaking fronts and the height field the sea mesh samples.
 
+import type { Conditions } from './conditions';
+
 /** Which way a wave peels: 0 = A-frame (both pockets), 1 = rights only (+x), -1 = lefts only (-x). */
 export type Peel = 0 | 1 | -1;
 
@@ -26,6 +28,8 @@ export interface Wave {
   nextSectionT: number;
   passedSurfer: boolean;
   peel: Peel;
+  /** Crest rotation about the peak (radians): the crest at x sits at crestZ + tan(angle) * (x - peakX). */
+  angle: number;
 }
 
 export interface SpotConfig {
@@ -69,6 +73,25 @@ export function crestZ(w: Wave, t: number): number {
   return w.z0 + w.speed * (t - w.t0);
 }
 
+/** Crest position at x for a wave arriving at an angle. */
+export function crestZAt(w: Wave, x: number, t: number): number {
+  return crestZ(w, t) + Math.tan(w.angle) * (x - w.peakX);
+}
+
+/** How far (m) an angled crest can be ahead of or behind its peak anywhere on the sea mesh. */
+export function crestSkew(w: Wave, halfWidth: number): number {
+  return Math.abs(Math.tan(w.angle)) * (halfWidth + Math.abs(w.peakX));
+}
+
+/** Ragged edge of the whitewater: the foam line wanders along the crest and in time. */
+export function foamEdgeWobble(x: number, t: number, seed: number): number {
+  return (
+    1.1 * Math.sin(0.9 * x + 1.7 * t + seed) +
+    0.6 * Math.sin(2.3 * x - 1.1 * t + 2 * seed) +
+    0.35 * Math.sin(4.1 * x + 2.9 * t)
+  );
+}
+
 export function fadeAt(z: number): number {
   if (z < FADE_Z) return 1;
   return Math.max(0, 1 - (z - FADE_Z) / (SHORE_Z - FADE_Z));
@@ -80,7 +103,7 @@ export function envelope(w: Wave, x: number): number {
 }
 
 export function localHeight(w: Wave, x: number, t: number): number {
-  return w.height * envelope(w, x) * fadeAt(crestZ(w, t));
+  return w.height * envelope(w, x) * fadeAt(crestZAt(w, x, t));
 }
 
 export function faceLength(h: number): number {
@@ -105,15 +128,15 @@ export function peelLabel(w: Wave): string {
   return w.peel === 1 ? 'right →' : w.peel === -1 ? '← left' : '← A-frame →';
 }
 
-/** 0 = green face, 1 = whitewater. Soft 1.5 m edge. */
+/** 0 = green face, 1 = whitewater. Soft, ragged edge a couple of metres wide. */
 export function brokenAmount(w: Wave, x: number, t: number, spot: SpotConfig): number {
   let best = 0;
-  const cz = crestZ(w, t);
+  const cz = crestZAt(w, x, t);
   if (cz > FADE_Z + 4) best = Math.min(1, (cz - FADE_Z - 4) / 6);
   for (const f of w.fronts) {
-    const r = spot.peelSpeed * (t - f.startT);
+    const r = spot.peelSpeed * (t - f.startT) + foamEdgeWobble(x, t, f.startT);
     const d = (f.dir === 0 ? Math.abs(x - f.x) : (x - f.x) * f.dir) - r;
-    const a = d <= 0 ? 1 : Math.max(0, 1 - d / 1.5);
+    const a = d <= 0 ? 1 : Math.max(0, 1 - d / 2.2);
     if (a > best) best = a;
   }
   return best;
@@ -126,7 +149,7 @@ export function brokenAmount(w: Wave, x: number, t: number, spot: SpotConfig): n
  */
 export function steepness(w: Wave, x: number, t: number, spot: SpotConfig): number {
   if (!w.isSet) return 0;
-  const cz = crestZ(w, t);
+  const cz = crestZAt(w, x, t);
   const ramp = smoothstep(BREAK_Z - 14, BREAK_Z + 1, cz) * fadeAt(cz);
   if (ramp <= 0) return 0;
   const dx = pocketOffset(w, x, t, spot);
@@ -150,7 +173,7 @@ export function profile(d: number, L: number, steep = 0, broken = 0): number {
  * forward (shoreward) lean so a hollow face stands up near-vertical and the whitewater runs ahead.
  */
 export function waveDisplaceAt(w: Wave, x: number, z: number, t: number, spot: SpotConfig, out: SeaPoint): void {
-  const cz = crestZ(w, t);
+  const cz = crestZAt(w, x, t);
   const d = z - cz;
   const L = w.length;
   if (d > 3.5 * L || d < -5 * L) return;
@@ -224,13 +247,16 @@ export class WaveScheduler {
   lastSetPeakX = 0;
 
   spot: SpotConfig;
+  conditions: Conditions;
 
-  constructor(spot: SpotConfig) {
+  constructor(spot: SpotConfig, conditions: Conditions) {
     this.spot = spot;
+    this.conditions = conditions;
     this.setPeakX = rand(-spot.peakRange, spot.peakRange);
   }
 
-  reset(): void {
+  reset(conditions: Conditions): void {
+    this.conditions = conditions;
     this.waves = [];
     this.mode = 'lull';
     this.remaining = 2;
@@ -261,7 +287,7 @@ export class WaveScheduler {
         }
       }
     }
-    this.waves = this.waves.filter((w) => crestZ(w, t) < BEACH_Z + 6);
+    this.waves = this.waves.filter((w) => crestZ(w, t) - crestSkew(w, 90) < BEACH_Z + 6);
   }
 
   private spawn(t: number): void {
@@ -315,6 +341,7 @@ export class WaveScheduler {
       nextSectionT: Infinity,
       passedSurfer: false,
       peel,
+      angle: this.conditions.angle + rand(-0.03, 0.03),
     };
   }
 

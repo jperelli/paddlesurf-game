@@ -6,6 +6,7 @@ import {
   brokenAmount,
   brokenHalfWidth,
   crestZ,
+  crestZAt,
   localHeight,
   seaPointAt,
   steepness,
@@ -14,12 +15,16 @@ import {
   type Wave,
 } from './wave';
 import type { WaterPalette } from './palette';
+import type { Conditions } from './conditions';
 
 const NX = 28; // segments along the crest
 const NV = 10; // segments along the curl
 const STRIP_LEN = CURL_WIDTH + 6;
 const POOL = 4;
 const SPRAY_N = 700;
+const MIST_N = 1200;
+/** How many crest samples either side of the pocket shed wind spray. */
+const WIND_STRIP = 14;
 
 interface Strip {
   mesh: THREE.Mesh;
@@ -66,6 +71,66 @@ function sprayTexture(): THREE.Texture {
   return tex;
 }
 
+/** Fixed-size particle pool rendered as sprites. */
+class SprayPool {
+  readonly points: THREE.Points;
+  private pos: Float32Array;
+  private vel: Float32Array;
+  private life: Float32Array;
+  private next = 0;
+  private n: number;
+
+  constructor(n: number, size: number, opacity: number) {
+    this.n = n;
+    this.pos = new Float32Array(n * 3);
+    this.vel = new Float32Array(n * 3);
+    this.life = new Float32Array(n);
+    for (let i = 0; i < n; i++) this.pos[i * 3 + 1] = -50;
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(this.pos, 3));
+    const mat = new THREE.PointsMaterial({
+      map: sprayTexture(),
+      size,
+      transparent: true,
+      depthWrite: false,
+      opacity,
+      color: '#ffffff',
+    });
+    this.points = new THREE.Points(geo, mat);
+    this.points.frustumCulled = false;
+  }
+
+  emit(x: number, y: number, z: number, vx: number, vy: number, vz: number, life: number): void {
+    const i = this.next;
+    this.next = (i + 1) % this.n;
+    this.pos[i * 3] = x;
+    this.pos[i * 3 + 1] = y;
+    this.pos[i * 3 + 2] = z;
+    this.vel[i * 3] = vx;
+    this.vel[i * 3 + 1] = vy;
+    this.vel[i * 3 + 2] = vz;
+    this.life[i] = life;
+  }
+
+  /** Integrate: gravity plus air drag pulling the horizontal velocity toward the wind. */
+  step(dt: number, gravity: number, wind: { x: number; z: number }, drag: number): void {
+    const { pos, vel, life } = this;
+    const wk = Math.min(1, drag * dt);
+    for (let i = 0; i < this.n; i++) {
+      if (life[i] <= 0) continue;
+      life[i] -= dt;
+      vel[i * 3 + 1] -= gravity * dt;
+      vel[i * 3] += (wind.x - vel[i * 3]) * wk;
+      vel[i * 3 + 2] += (wind.z - vel[i * 3 + 2]) * wk;
+      pos[i * 3] += vel[i * 3] * dt;
+      pos[i * 3 + 1] += vel[i * 3 + 1] * dt;
+      pos[i * 3 + 2] += vel[i * 3 + 2] * dt;
+      if (life[i] <= 0) pos[i * 3 + 1] = -50;
+    }
+    this.points.geometry.attributes.position.needsUpdate = true;
+  }
+}
+
 /**
  * The pitching lip: a curling sheet of water thrown from the crest into the trough next to the
  * whitewater (the pocket), feathering out onto the shoulder, plus spray where it lands.
@@ -79,11 +144,12 @@ export class Lips {
   private tmp = new THREE.Color();
   private pt: SeaPoint = { y: 0, z: 0 };
 
-  private spray: THREE.Points;
-  private sprayPos = new Float32Array(SPRAY_N * 3);
-  private sprayVel = new Float32Array(SPRAY_N * 3);
-  private sprayLife = new Float32Array(SPRAY_N);
-  private sprayNext = 0;
+  /** Coarse spray where the lip lands. */
+  private spray = new SprayPool(SPRAY_N, 1.4, 0.8);
+  /** Fine spindrift torn off the crest by the wind. */
+  private mist = new SprayPool(MIST_N, 0.55, 0.5);
+  private wind = { x: 0, z: 0 };
+  private windAcc = 0;
 
   constructor(palette: WaterPalette) {
     this.material = new THREE.MeshStandardMaterial({
@@ -99,20 +165,7 @@ export class Lips {
       this.strips.push(s);
       this.group.add(s.mesh);
     }
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.BufferAttribute(this.sprayPos, 3));
-    const mat = new THREE.PointsMaterial({
-      map: sprayTexture(),
-      size: 1.4,
-      transparent: true,
-      depthWrite: false,
-      opacity: 0.8,
-      color: '#ffffff',
-    });
-    this.spray = new THREE.Points(geo, mat);
-    this.spray.frustumCulled = false;
-    for (let i = 0; i < SPRAY_N; i++) this.sprayPos[i * 3 + 1] = -50;
-    this.group.add(this.spray);
+    this.group.add(this.spray.points, this.mist.points);
     this.setPalette(palette);
   }
 
@@ -121,16 +174,36 @@ export class Lips {
     this.foamColor.set(p.foam);
   }
 
+  setConditions(c: Conditions): void {
+    this.wind.x = c.windX;
+    this.wind.z = c.windZ;
+  }
+
+  /** Spindrift: a plume torn off the crest of a wave that is standing up, carried by the wind. */
+  private emitWind(x: number, y: number, z: number, power: number): void {
+    const wx = this.wind.x;
+    const wz = this.wind.z;
+    this.mist.emit(
+      x + (Math.random() - 0.5) * 1.6,
+      y + Math.random() * 0.3,
+      z,
+      wx * (0.5 + 0.5 * Math.random()) + (Math.random() - 0.5),
+      (2.4 + 3.2 * Math.random()) * power,
+      wz * (0.5 + 0.5 * Math.random()) + (Math.random() - 0.5),
+      1.2 + 1.0 * Math.random(),
+    );
+  }
+
   private emit(x: number, y: number, z: number, vz: number, power: number): void {
-    const i = this.sprayNext;
-    this.sprayNext = (i + 1) % SPRAY_N;
-    this.sprayPos[i * 3] = x + (Math.random() - 0.5) * 1.2;
-    this.sprayPos[i * 3 + 1] = y;
-    this.sprayPos[i * 3 + 2] = z + (Math.random() - 0.5) * 0.8;
-    this.sprayVel[i * 3] = (Math.random() - 0.5) * 1.5;
-    this.sprayVel[i * 3 + 1] = (1.5 + 3.5 * Math.random()) * power;
-    this.sprayVel[i * 3 + 2] = vz * 0.6 + Math.random() * 1.5;
-    this.sprayLife[i] = 0.7 + 0.7 * Math.random();
+    this.spray.emit(
+      x + (Math.random() - 0.5) * 1.2,
+      y,
+      z + (Math.random() - 0.5) * 0.8,
+      (Math.random() - 0.5) * 1.5,
+      (1.5 + 3.5 * Math.random()) * power,
+      vz * 0.6 + Math.random() * 1.5,
+      0.7 + 0.7 * Math.random(),
+    );
   }
 
   update(waves: Wave[], t: number, spot: SpotConfig, dt: number): void {
@@ -149,19 +222,34 @@ export class Lips {
     }
     for (let i = used; i < POOL; i++) this.strips[i].mesh.visible = false;
 
-    // Spray physics.
-    const pos = this.sprayPos;
-    const vel = this.sprayVel;
-    for (let i = 0; i < SPRAY_N; i++) {
-      if (this.sprayLife[i] <= 0) continue;
-      this.sprayLife[i] -= dt;
-      vel[i * 3 + 1] -= 6 * dt;
-      pos[i * 3] += vel[i * 3] * dt;
-      pos[i * 3 + 1] += vel[i * 3 + 1] * dt;
-      pos[i * 3 + 2] += vel[i * 3 + 2] * dt;
-      if (this.sprayLife[i] <= 0) pos[i * 3 + 1] = -50;
+    // Wind spray off the crests that are standing up but not yet broken.
+    const windSpeed = Math.hypot(this.wind.x, this.wind.z);
+    if (windSpeed > 1) {
+      this.windAcc += dt * 170 * Math.min(1, windSpeed / 5);
+      for (const w of waves) {
+        if (!w.isSet || this.windAcc < 1) continue;
+        const half = brokenHalfWidth(w, t, spot);
+        const sides: (1 | -1)[] = w.peel === 0 ? [1, -1] : [w.peel];
+        for (const side of sides) {
+          for (let i = 0; i < WIND_STRIP && this.windAcc >= 1; i++) {
+            const x = w.peakX + side * (half + 1 + i * 1.7 + Math.random() * 1.7);
+            const T = steepness(w, x, t, spot) * (1 - brokenAmount(w, x, t, spot));
+            if (T < 0.35) continue;
+            const amp = localHeight(w, x, t);
+            if (amp < 0.5) continue;
+            const czx = crestZAt(w, x, t);
+            const top = seaPointAt(waves, x, czx, t, spot, this.pt);
+            this.emitWind(x, top.y + 0.1, top.z, T * Math.min(1.2, amp) * Math.min(1, windSpeed / 4));
+            this.windAcc -= 1;
+          }
+        }
+      }
+      this.windAcc = Math.min(this.windAcc, 6);
     }
-    this.spray.geometry.attributes.position.needsUpdate = true;
+
+    // Heavy spray falls fast and barely feels the wind; the fine mist is carried by it.
+    this.spray.step(dt, 6, this.wind, 0.6);
+    this.mist.step(dt, 3.5, this.wind, 2.2);
   }
 
   private fill(
@@ -177,7 +265,7 @@ export class Lips {
   ): void {
     const { pos, col } = strip;
     const x0 = w.peakX + side * (half - 1.5);
-    const throwRamp = Math.min(1, Math.max(0, (cz - (BREAK_Z - 3)) / 7));
+    const tanA = Math.tan(w.angle);
     let maxT = 0;
     const emitBudget = Math.min(6, Math.ceil(90 * dt));
     for (let i = 0; i <= NX; i++) {
@@ -186,9 +274,11 @@ export class Lips {
       const dx = Math.abs(x - w.peakX) - half;
       const edge = dx < 0 ? Math.max(0, 1 + dx / 1.5) : dx < CURL_WIDTH ? 1 : Math.max(0, 1 - (dx - CURL_WIDTH) / 6);
       const amp = localHeight(w, x, t) * (1 - 0.35 * brokenAmount(w, x, t, spot));
+      const czx = cz + tanA * (x - w.peakX);
+      const throwRamp = Math.min(1, Math.max(0, (czx - (BREAK_Z - 3)) / 7));
       const T = steepness(w, x, t, spot) * edge * throwRamp;
       maxT = Math.max(maxT, T);
-      const top = seaPointAt(waves, x, cz, t, spot, this.pt);
+      const top = seaPointAt(waves, x, czx, t, spot, this.pt);
       const topY = top.y;
       const topZ = top.z;
       // Circle through the crest top, curling forward and down; the surfer rides inside it.
