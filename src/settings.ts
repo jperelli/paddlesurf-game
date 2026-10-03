@@ -1,5 +1,6 @@
 import type { Game } from './game';
 import { isSaved, saveQuality } from './quality';
+import { BOARDS, BODIES, FACES, PADDLES, photoToDataUrl } from './looks';
 import { KEY_LABELS, SURFER_KEYS, WATER_KEYS, type PaletteKey, type SurferPalette, type WaterPalette } from './palette';
 import { resetRoster, saveRoster, type Roster } from './roster';
 
@@ -22,6 +23,19 @@ export class SettingsPanel {
         <label>Surfer <select id="st-surfer"></select></label>
         <input id="st-surfer-name" placeholder="Surfer name" />
         <button id="st-surfer-add">Add surfer</button>
+        <div class="label">Face</div>
+        <div id="st-face" class="picks"></div>
+        <div class="row photo-row">
+          <label class="file">Use a photo of your face <input id="st-face-photo" type="file" accept="image/*" /></label>
+          <button id="st-face-clear">Drawn face</button>
+          <span id="st-face-note" class="small"></span>
+        </div>
+        <div class="label">Body</div>
+        <div id="st-body" class="picks"></div>
+        <div class="label">Board</div>
+        <div id="st-board" class="picks"></div>
+        <div class="label">Paddle</div>
+        <div id="st-paddle" class="picks"></div>
       </section>
       <section>
         <label>Spot <select id="st-spot"></select></label>
@@ -115,7 +129,7 @@ export class SettingsPanel {
       this.renderSelects();
     };
     this.q('#st-surfer-add').onclick = () => {
-      this.roster.surfers.push({ name: `Surfer ${this.roster.surfers.length + 1}`, palette: { ...this.surfer.palette } });
+      this.roster.surfers.push({ name: `Surfer ${this.roster.surfers.length + 1}`, palette: { ...this.surfer.palette }, look: { ...this.surfer.look } });
       this.roster.surferIndex = this.roster.surfers.length - 1;
       this.apply();
       this.render();
@@ -125,6 +139,30 @@ export class SettingsPanel {
       this.roster.spotIndex = this.roster.spots.length - 1;
       this.apply();
       this.render();
+    };
+    this.q<HTMLInputElement>('#st-face-photo').onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        this.surfer.look.facePhoto = photoToDataUrl(img);
+        this.apply();
+        this.renderPicks();
+        this.q('#st-face-note').textContent = 'Photo on the face. Press Save to keep it.';
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        this.q('#st-face-note').textContent = 'Could not read that image.';
+      };
+      img.src = url;
+    };
+    this.q('#st-face-clear').onclick = () => {
+      this.surfer.look.facePhoto = null;
+      this.apply();
+      this.renderPicks();
+      this.q('#st-face-note').textContent = '';
     };
     type NumKey = 'minHeight' | 'maxHeight' | 'peelSpeed' | 'sectionChance' | 'rightOnly' | 'leftOnly' | 'setMin' | 'setMax';
     const num = (id: string, key: NumKey) => {
@@ -182,7 +220,36 @@ export class SettingsPanel {
     this.q<HTMLInputElement>('#st-left').value = String(this.spot.leftOnly);
     this.q<HTMLInputElement>('#st-setmin').value = String(this.spot.setMin);
     this.q<HTMLInputElement>('#st-setmax').value = String(this.spot.setMax);
+    this.renderPicks();
     this.renderSwatches();
+  }
+
+  private renderPicks(): void {
+    type LookKey = 'face' | 'body' | 'board' | 'paddle';
+    const row = (id: string, key: LookKey, list: { name: string; desc: string }[]) => {
+      const el = this.q(id);
+      el.innerHTML = '';
+      list.forEach((o, i) => {
+        const b = document.createElement('button');
+        b.className = `pick${this.surfer.look[key] === i ? ' on' : ''}`;
+        b.innerHTML = '<b></b><span></span>';
+        b.querySelector('b')!.textContent = o.name;
+        b.querySelector('span')!.textContent = o.desc;
+        b.onclick = () => {
+          this.surfer.look[key] = i;
+          this.apply();
+          this.renderPicks();
+        };
+        el.appendChild(b);
+      });
+    };
+    row('#st-face', 'face', FACES);
+    row('#st-body', 'body', BODIES);
+    row('#st-board', 'board', BOARDS);
+    row('#st-paddle', 'paddle', PADDLES);
+    const hasPhoto = !!this.surfer.look.facePhoto;
+    this.q('#st-face').classList.toggle('dim', hasPhoto);
+    this.q<HTMLButtonElement>('#st-face-clear').disabled = !hasPhoto;
   }
 
   private renderSelects(): void {

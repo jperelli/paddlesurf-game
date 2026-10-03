@@ -7,10 +7,12 @@ import {
   type WaterPalette,
 } from './palette';
 import type { SpotConfig } from './wave';
+import { defaultLook, type Look } from './looks';
 
 export interface Surfer {
   name: string;
   palette: SurferPalette;
+  look: Look;
 }
 
 export interface Spot extends SpotConfig {
@@ -29,9 +31,9 @@ const KEY = 'paddlesurf.roster.v6';
 export function defaultRoster(): Roster {
   return {
     surfers: [
-      { name: 'Julian', palette: { ...DEFAULT_SURFER } },
-      { name: 'Alfredo', palette: { ...DEFAULT_SURFER, board: '#2f7fb8', boardNose: '#f4f4f4', boardTail: '#f4f4f4' } },
-      { name: 'Ferchu', palette: { ...DEFAULT_SURFER, board: '#f0f0ea', boardNose: '#2aa4b5', boardTail: '#2aa4b5' } },
+      { name: 'Julian', palette: { ...DEFAULT_SURFER }, look: defaultLook(0) },
+      { name: 'Alfredo', palette: { ...DEFAULT_SURFER, board: '#2f7fb8', boardNose: '#f4f4f4', boardTail: '#f4f4f4' }, look: defaultLook(1) },
+      { name: 'Ferchu', palette: { ...DEFAULT_SURFER, board: '#f0f0ea', boardNose: '#2aa4b5', boardTail: '#2aa4b5' }, look: defaultLook(2) },
     ],
     spots: [
       {
@@ -102,6 +104,9 @@ export function loadRoster(): Roster {
     if (!raw) return defaultRoster();
     const parsed = JSON.parse(raw) as Roster;
     if (!parsed.surfers?.length || !parsed.spots?.length) return defaultRoster();
+    parsed.surfers.forEach((s, i) => {
+      if (!s.look) s.look = defaultLook(i);
+    });
     return parsed;
   } catch {
     return defaultRoster();

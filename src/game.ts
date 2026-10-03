@@ -5,6 +5,7 @@ import { SkyDome } from './sky';
 import { Wake } from './wake';
 import { Lips } from './lip';
 import { SurferRig, type Stance } from './surfer';
+import { lookKey } from './looks';
 import {
   SMALL_WAVE_MAX,
   WaveScheduler,
@@ -61,7 +62,8 @@ export class Game {
   readonly sea: Sea;
   private lips: Lips;
   private surfPt: SeaPoint = { y: 0, z: 0 };
-  readonly rig: SurferRig;
+  rig: SurferRig;
+  private rigKey: string;
   private hemi: THREE.HemisphereLight;
   private sun: THREE.DirectionalLight;
   private skyDome: SkyDome;
@@ -132,7 +134,8 @@ export class Game {
     this.scheduler = new WaveScheduler(spot, this.conditions);
     this.lips.setConditions(this.conditions);
 
-    this.rig = new SurferRig(surfer.palette);
+    this.rig = new SurferRig(surfer.palette, surfer.look);
+    this.rigKey = lookKey(surfer.look);
     this.scene.add(this.rig.group);
 
     this.peakMarker = new THREE.Mesh(
@@ -188,7 +191,19 @@ export class Game {
 
   applySurfer(surfer: Surfer): void {
     this.surfer = surfer;
-    this.rig.setPalette(surfer.palette);
+    const key = lookKey(surfer.look);
+    if (key !== this.rigKey) {
+      const old = this.rig;
+      this.scene.remove(old.group);
+      old.dispose();
+      this.rig = new SurferRig(surfer.palette, surfer.look);
+      this.rig.group.position.copy(old.group.position);
+      this.rig.group.quaternion.copy(old.group.quaternion);
+      this.scene.add(this.rig.group);
+      this.rigKey = key;
+    } else {
+      this.rig.setPalette(surfer.palette);
+    }
   }
 
   start(): void {

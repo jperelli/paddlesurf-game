@@ -1,13 +1,11 @@
 import * as THREE from 'three';
+import { BOARDS, BODIES, DEFAULT_LOOK, FACES, PADDLES, paintFace, type BoardSpec, type Look, type PaddleSpec } from './looks';
 import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { SurferPalette } from './palette';
 
 export type Stance = -1 | 0 | 1;
 
 // Board (metres). Local +z is the nose, +x is the right rail.
-const BOARD_NOSE = 1.5;
-const BOARD_TAIL = -1.3;
-const BOARD_HALF_W = 0.39;
 const RAIL = 0.05;
 const BOARD_CORE = 0.03;
 const BOARD_THICK = BOARD_CORE + 2 * RAIL;
@@ -22,7 +20,6 @@ const FOREARM = 0.27;
 const HIP_X = 0.1;
 const SHOULDER_X = 0.19;
 const SHAFT = 1.95;
-const BLADE_LEN = 0.46;
 
 const UP = new THREE.Vector3(0, 1, 0);
 
@@ -81,12 +78,67 @@ function volume(profile: [number, number][], mat: THREE.Material, scaleZ = 1): T
   return new THREE.Mesh(geo, mat);
 }
 
-/** Paints the deck: red board, orange nose with white stripes, grey pad, yellow-green tail (like the photo). */
-function paintDeck(ctx: CanvasRenderingContext2D, p: SurferPalette): void {
+function paintPad(ctx: CanvasRenderingContext2D, W: number, H: number, y0: number, y1: number): void {
+  ctx.fillStyle = 'rgba(210,210,200,0.9)';
+  ctx.beginPath();
+  ctx.roundRect(W * 0.14, H * y0, W * 0.72, H * (y1 - y0), W * 0.1);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(120,120,112,0.5)';
+  ctx.lineWidth = W * 0.012;
+  for (let i = 1; i < 8; i++) {
+    const y = H * (y0 + ((y1 - y0) * i) / 8);
+    ctx.beginPath();
+    ctx.moveTo(W * 0.16, y);
+    ctx.lineTo(W * 0.84, y);
+    ctx.stroke();
+  }
+}
+
+/** Deck designs: 0 the photo's board (orange nose, white stripes, yellow tail), 1 centre stripe, 2 colour blocks. */
+function paintDeck(ctx: CanvasRenderingContext2D, p: SurferPalette, design: number): void {
   const W = ctx.canvas.width;
   const H = ctx.canvas.height;
   ctx.fillStyle = p.board;
   ctx.fillRect(0, 0, W, H);
+  if (design === 1) {
+    ctx.fillStyle = p.boardNose;
+    ctx.fillRect(W * 0.42, 0, W * 0.16, H);
+    ctx.fillStyle = p.boardTail;
+    ctx.fillRect(0, H * 0.84, W, H * 0.16);
+    ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+    ctx.lineWidth = W * 0.015;
+    ctx.strokeRect(W * 0.08, H * 0.05, W * 0.84, H * 0.9);
+    paintPad(ctx, W, H, 0.38, 0.8);
+    return;
+  }
+  if (design === 2) {
+    ctx.fillStyle = p.boardNose;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(W, 0);
+    ctx.lineTo(W, H * 0.22);
+    ctx.lineTo(0, H * 0.3);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = p.boardTail;
+    ctx.beginPath();
+    ctx.moveTo(0, H * 0.78);
+    ctx.lineTo(W, H * 0.7);
+    ctx.lineTo(W, H);
+    ctx.lineTo(0, H);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+    ctx.lineWidth = W * 0.02;
+    ctx.beginPath();
+    ctx.moveTo(0, H * 0.32);
+    ctx.lineTo(W, H * 0.24);
+    ctx.moveTo(0, H * 0.76);
+    ctx.lineTo(W, H * 0.68);
+    ctx.stroke();
+    paintPad(ctx, W, H, 0.4, 0.74);
+    return;
+  }
 
   const nose = ctx.createLinearGradient(0, 0, 0, H * 0.4);
   nose.addColorStop(0, p.boardNose);
@@ -105,19 +157,7 @@ function paintDeck(ctx: CanvasRenderingContext2D, p: SurferPalette): void {
     ctx.stroke();
   }
 
-  ctx.fillStyle = 'rgba(210,210,200,0.9)';
-  ctx.beginPath();
-  ctx.roundRect(W * 0.14, H * 0.36, W * 0.72, H * 0.4, W * 0.1);
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(120,120,112,0.5)';
-  ctx.lineWidth = W * 0.012;
-  for (let i = 1; i < 8; i++) {
-    const y = H * (0.36 + (0.4 * i) / 8);
-    ctx.beginPath();
-    ctx.moveTo(W * 0.16, y);
-    ctx.lineTo(W * 0.84, y);
-    ctx.stroke();
-  }
+  paintPad(ctx, W, H, 0.36, 0.76);
 
   const tail = ctx.createLinearGradient(0, H * 0.7, 0, H);
   tail.addColorStop(0, 'rgba(0,0,0,0)');
@@ -134,20 +174,43 @@ function paintDeck(ctx: CanvasRenderingContext2D, p: SurferPalette): void {
   ctx.fill();
 }
 
-/** Round-nosed, round-tailed outline; the bevel adds the rail back to full width. */
-function boardOutline(): THREE.Shape {
-  const w = BOARD_HALF_W - RAIL;
+/** Plan-shape outline (nose pointiness and tail shape from the spec); the bevel adds the rail back to full width. */
+function boardOutline(b: BoardSpec): THREE.Shape {
+  const w = b.halfW - RAIL;
+  const N = b.nose;
+  const T = b.tail;
+  const p = b.pointy;
   const s = new THREE.Shape();
-  s.moveTo(0, BOARD_TAIL);
-  s.bezierCurveTo(w * 0.6, BOARD_TAIL, w * 1.02, BOARD_TAIL + 0.45, w, BOARD_TAIL + 1.0);
-  s.bezierCurveTo(w * 1.03, BOARD_NOSE - 1.3, w * 0.62, BOARD_NOSE - 0.02, 0, BOARD_NOSE);
-  s.bezierCurveTo(-w * 0.62, BOARD_NOSE - 0.02, -w * 1.03, BOARD_NOSE - 1.3, -w, BOARD_TAIL + 1.0);
-  s.bezierCurveTo(-w * 1.02, BOARD_TAIL + 0.45, -w * 0.6, BOARD_TAIL, 0, BOARD_TAIL);
+  const side = (sx: number) => {
+    // from the widest tail point up to the nose tip
+    s.bezierCurveTo(sx * w * (1.03 - 0.03 * p), N - (1.3 + 0.25 * p), sx * w * (0.62 - 0.34 * p), N - (0.02 + 0.5 * p), 0, N);
+  };
+  if (b.tailShape === 'squash') {
+    s.moveTo(0, T);
+    s.lineTo(w * 0.55, T);
+    s.bezierCurveTo(w * 0.9, T + 0.04, w * 1.02, T + 0.45, w, T + 1.0);
+    side(1);
+    s.bezierCurveTo(-w * (0.62 - 0.34 * p), N - (0.02 + 0.5 * p), -w * (1.03 - 0.03 * p), N - (1.3 + 0.25 * p), -w, T + 1.0);
+    s.bezierCurveTo(-w * 1.02, T + 0.45, -w * 0.9, T + 0.04, -w * 0.55, T);
+    s.lineTo(0, T);
+  } else if (b.tailShape === 'pin') {
+    s.moveTo(0, T);
+    s.bezierCurveTo(w * 0.25, T + 0.08, w * 0.98, T + 0.6, w, T + 1.1);
+    side(1);
+    s.bezierCurveTo(-w * (0.62 - 0.34 * p), N - (0.02 + 0.5 * p), -w * (1.03 - 0.03 * p), N - (1.3 + 0.25 * p), -w, T + 1.1);
+    s.bezierCurveTo(-w * 0.98, T + 0.6, -w * 0.25, T + 0.08, 0, T);
+  } else {
+    s.moveTo(0, T);
+    s.bezierCurveTo(w * 0.6, T, w * 1.02, T + 0.45, w, T + 1.0);
+    side(1);
+    s.bezierCurveTo(-w * (0.62 - 0.34 * p), N - (0.02 + 0.5 * p), -w * (1.03 - 0.03 * p), N - (1.3 + 0.25 * p), -w, T + 1.0);
+    s.bezierCurveTo(-w * 1.02, T + 0.45, -w * 0.6, T, 0, T);
+  }
   return s;
 }
 
-function boardGeometry(): THREE.BufferGeometry {
-  let geo: THREE.BufferGeometry = new THREE.ExtrudeGeometry(boardOutline(), {
+function boardGeometry(b: BoardSpec): THREE.BufferGeometry {
+  let geo: THREE.BufferGeometry = new THREE.ExtrudeGeometry(boardOutline(b), {
     depth: BOARD_CORE,
     bevelEnabled: true,
     bevelSize: RAIL,
@@ -162,34 +225,45 @@ function boardGeometry(): THREE.BufferGeometry {
   const pos = geo.attributes.position;
   for (let i = 0; i < pos.count; i++) {
     const z = pos.getZ(i);
-    const nose = Math.max(0, (z - 0.4) / (BOARD_NOSE - 0.4));
-    const tail = Math.max(0, (-z - 0.7) / (-BOARD_TAIL - 0.7));
-    pos.setY(i, pos.getY(i) + 0.1 * nose * nose + 0.035 * tail * tail);
+    const nose = Math.max(0, (z - 0.4) / (b.nose - 0.4));
+    const tail = Math.max(0, (-z - 0.7) / (-b.tail - 0.7));
+    pos.setY(i, pos.getY(i) + b.rocker * (0.1 * nose * nose + 0.035 * tail * tail));
   }
   geo.computeVertexNormals();
   return geo;
 }
 
-/** Swept-back single fin, built in (along-board, height) and turned to sit under the tail. */
-function finGeometry(): THREE.BufferGeometry {
+/** Swept-back fin, built in (along-board, height) and turned to sit under the tail. */
+function finGeometry(scale: number, x: number, z: number, toe: number): THREE.BufferGeometry {
   const s = new THREE.Shape();
   s.moveTo(-0.24, 0);
   s.lineTo(0.0, 0);
   s.bezierCurveTo(0.04, -0.1, 0.1, -0.18, 0.11, -0.25);
   s.bezierCurveTo(0.02, -0.21, -0.14, -0.12, -0.24, 0);
   const geo = new THREE.ExtrudeGeometry(s, { depth: 0.012, bevelEnabled: true, bevelSize: 0.004, bevelThickness: 0.004, bevelSegments: 2, curveSegments: 12 });
-  geo.rotateY(Math.PI / 2);
-  geo.translate(-0.01, 0.01, BOARD_TAIL + 0.32);
+  geo.scale(scale, scale, 1);
+  geo.rotateY(Math.PI / 2 + toe);
+  geo.translate(x - 0.01, 0.01, z);
   return geo;
 }
 
+function finGeometries(b: BoardSpec): THREE.BufferGeometry[] {
+  const fins = [finGeometry(b.fins === 3 ? 0.85 : 1, 0, b.tail + 0.32, 0)];
+  if (b.fins === 3) {
+    fins.push(finGeometry(0.7, -b.halfW * 0.55, b.tail + 0.55, 0.08), finGeometry(0.7, b.halfW * 0.55, b.tail + 0.55, -0.08));
+  }
+  return fins;
+}
+
 /** Teardrop paddle blade in the paddle's local xy plane, +y running down the shaft. */
-function bladeGeometry(): THREE.BufferGeometry {
+function bladeGeometry(pd: PaddleSpec): THREE.BufferGeometry {
+  const L = pd.bladeLen;
+  const k = pd.bladeW;
   const s = new THREE.Shape();
   s.moveTo(-0.025, 0);
-  s.bezierCurveTo(-0.115, 0.1, -0.12, 0.3, -0.035, BLADE_LEN - 0.02);
-  s.quadraticCurveTo(0, BLADE_LEN + 0.01, 0.035, BLADE_LEN - 0.02);
-  s.bezierCurveTo(0.12, 0.3, 0.115, 0.1, 0.025, 0);
+  s.bezierCurveTo(-0.115 * k, 0.1, -0.12 * k, L * 0.65, -0.035 * k, L - 0.02);
+  s.quadraticCurveTo(0, L + 0.01, 0.035 * k, L - 0.02);
+  s.bezierCurveTo(0.12 * k, L * 0.65, 0.115 * k, 0.1, 0.025, 0);
   const geo = new THREE.ExtrudeGeometry(s, { depth: 0.008, bevelEnabled: true, bevelSize: 0.005, bevelThickness: 0.005, bevelSegments: 2, curveSegments: 14 });
   geo.translate(0, 0, -0.009);
   return geo;
@@ -202,6 +276,13 @@ export class SurferRig {
   private board = new THREE.Group();
   private deckCanvas = document.createElement('canvas');
   private deckTex: THREE.CanvasTexture;
+  private faceCanvas = document.createElement('canvas');
+  private faceTex: THREE.CanvasTexture;
+  private photo: HTMLImageElement | null = null;
+  private readonly look: Look;
+  private readonly boardSpec: BoardSpec;
+  private readonly shoulderX: number;
+  private readonly hipX: number;
   private mats: {
     wetsuit: THREE.MeshStandardMaterial;
     skin: THREE.MeshStandardMaterial;
@@ -210,7 +291,7 @@ export class SurferRig {
     fin: THREE.MeshStandardMaterial;
     paddle: THREE.MeshStandardMaterial;
     blade: THREE.MeshStandardMaterial;
-    mouth: THREE.MeshStandardMaterial;
+    face: THREE.MeshStandardMaterial;
   };
 
   private pelvis: THREE.Mesh;
@@ -245,7 +326,16 @@ export class SurferRig {
   private bladeTip = new THREE.Vector3(0.6, -0.2, 0.6);
   private kneeHint = new THREE.Vector3(0, 0, 1);
 
-  constructor(palette: SurferPalette) {
+  constructor(palette: SurferPalette, look: Look = DEFAULT_LOOK) {
+    this.look = look;
+    const bs = BOARDS[look.board] ?? BOARDS[0];
+    const bd = BODIES[look.body] ?? BODIES[0];
+    const pd = PADDLES[look.paddle] ?? PADDLES[0];
+    const fc = FACES[look.face] ?? FACES[0];
+    this.boardSpec = bs;
+    this.shoulderX = SHOULDER_X * bd.shoulder;
+    this.hipX = HIP_X * (0.5 + 0.5 * bd.torso);
+    const bw = bd.width;
     const m = (c: string, rough = 0.6) => new THREE.MeshStandardMaterial({ color: c, roughness: rough });
     this.deckCanvas.width = 128;
     this.deckCanvas.height = 512;
@@ -253,8 +343,12 @@ export class SurferRig {
     this.deckTex.colorSpace = THREE.SRGBColorSpace;
     this.deckTex.wrapS = THREE.ClampToEdgeWrapping;
     this.deckTex.wrapT = THREE.ClampToEdgeWrapping;
-    this.deckTex.repeat.set(1 / (2 * BOARD_HALF_W + 0.06), 1 / (BOARD_NOSE - BOARD_TAIL));
-    this.deckTex.offset.set((BOARD_HALF_W + 0.03) / (2 * BOARD_HALF_W + 0.06), -BOARD_TAIL / (BOARD_NOSE - BOARD_TAIL));
+    this.deckTex.repeat.set(1 / (2 * bs.halfW + 0.06), 1 / (bs.nose - bs.tail));
+    this.deckTex.offset.set((bs.halfW + 0.03) / (2 * bs.halfW + 0.06), -bs.tail / (bs.nose - bs.tail));
+    this.faceCanvas.width = 256;
+    this.faceCanvas.height = 256;
+    this.faceTex = new THREE.CanvasTexture(this.faceCanvas);
+    this.faceTex.colorSpace = THREE.SRGBColorSpace;
     this.mats = {
       wetsuit: m(palette.wetsuit, 0.72),
       skin: m(palette.skin, 0.8),
@@ -263,28 +357,31 @@ export class SurferRig {
       fin: m('#1d2328', 0.45),
       paddle: m(palette.paddle, 0.45),
       blade: m(palette.blade, 0.35),
-      mouth: m('#6e4035', 0.7),
+      face: new THREE.MeshStandardMaterial({ map: this.faceTex, roughness: 0.75 }),
     };
 
-    this.board.add(new THREE.Mesh(boardGeometry(), this.mats.board), new THREE.Mesh(finGeometry(), this.mats.fin));
+    this.board.add(new THREE.Mesh(boardGeometry(bs), this.mats.board));
+    for (const fin of finGeometries(bs)) this.board.add(new THREE.Mesh(fin, this.mats.fin));
 
     const ball = (r: number, mat: THREE.Material) => new THREE.Mesh(new THREE.SphereGeometry(r, 14, 12), mat);
+    const jball = (r: number, mat: THREE.Material) => ball(r * bw, mat);
+    const vol = (profile: [number, number][], mat: THREE.Material, scaleZ = 1) => volume(profile.map(([y, r]) => [y, r * bw] as [number, number]), mat, scaleZ);
     const ws = this.mats.wetsuit;
     const pair = (make: () => THREE.Mesh): [THREE.Mesh, THREE.Mesh] => [make(), make()];
     // Profiles run from the proximal joint (-0.5) to the distal one (0.5).
-    this.thighs = pair(() => volume([[-0.5, 0.082], [-0.42, 0.095], [-0.1, 0.088], [0.3, 0.074], [0.5, 0.064]], ws));
-    this.shins = pair(() => volume([[-0.5, 0.062], [-0.3, 0.074], [-0.05, 0.062], [0.3, 0.046], [0.5, 0.038]], ws));
-    this.upperArms = pair(() => volume([[-0.5, 0.062], [-0.25, 0.056], [0.2, 0.048], [0.5, 0.04]], ws));
-    this.forearms = pair(() => volume([[-0.5, 0.042], [-0.3, 0.05], [0.1, 0.04], [0.5, 0.028]], ws));
-    this.hipJoints = pair(() => ball(0.088, ws));
+    this.thighs = pair(() => vol([[-0.5, 0.082], [-0.42, 0.095], [-0.1, 0.088], [0.3, 0.074], [0.5, 0.064]], ws));
+    this.shins = pair(() => vol([[-0.5, 0.062], [-0.3, 0.074], [-0.05, 0.062], [0.3, 0.046], [0.5, 0.038]], ws));
+    this.upperArms = pair(() => vol([[-0.5, 0.062], [-0.25, 0.056], [0.2, 0.048], [0.5, 0.04]], ws));
+    this.forearms = pair(() => vol([[-0.5, 0.042], [-0.3, 0.05], [0.1, 0.04], [0.5, 0.028]], ws));
+    this.hipJoints = pair(() => jball(0.088, ws));
     this.shoulderJoints = pair(() => {
-      const d = ball(0.068, ws);
+      const d = jball(0.068, ws);
       d.scale.set(1, 1.12, 0.95);
       return d;
     });
-    this.elbowJoints = pair(() => ball(0.044, ws));
-    this.kneeJoints = pair(() => ball(0.064, ws));
-    this.ankleJoints = pair(() => ball(0.04, ws));
+    this.elbowJoints = pair(() => jball(0.044, ws));
+    this.kneeJoints = pair(() => jball(0.064, ws));
+    this.ankleJoints = pair(() => jball(0.04, ws));
     const footGeo = new THREE.CapsuleGeometry(0.045, 0.17, 4, 10);
     footGeo.rotateX(Math.PI / 2);
     footGeo.scale(1, 0.5, 1);
@@ -300,25 +397,29 @@ export class SurferRig {
     // ribcage flaring to the chest, then the trapezius sloping into the neck. -0.5 is the hip
     // centre, 0.5 the shoulder line; the cross-section is an ellipse (deeper than it is wide
     // is wrong for a chest, so z is flattened to 0.62).
+    const bt = bd.torso;
+    const belly = (y: number) => (y > -0.5 && y < 0.2 ? bd.belly * Math.cos(((y + 0.15) / 0.35) * (Math.PI / 2)) : 0);
     this.torso = volume(
-      [
-        [-0.56, 0.1],
-        [-0.5, 0.148],
-        [-0.42, 0.158],
-        [-0.25, 0.15],
-        [-0.08, 0.14],
-        [0.1, 0.162],
-        [0.3, 0.18],
-        [0.42, 0.176],
-        [0.5, 0.152],
-        [0.57, 0.09],
-        [0.6, 0.0],
-      ],
+      (
+        [
+          [-0.56, 0.1],
+          [-0.5, 0.148],
+          [-0.42, 0.158],
+          [-0.25, 0.15],
+          [-0.08, 0.14],
+          [0.1, 0.162],
+          [0.3, 0.18],
+          [0.42, 0.176],
+          [0.5, 0.152],
+          [0.57, 0.09],
+          [0.6, 0.0],
+        ] as [number, number][]
+      ).map(([y, r]) => [y, r * bt + belly(y)] as [number, number]),
       ws,
-      0.62,
+      0.62 + 0.5 * bd.belly,
     );
     this.pelvis = ball(1, ws);
-    this.pelvis.scale.set(0.165, 0.12, 0.115);
+    this.pelvis.scale.set(0.165 * bt, 0.12, 0.115 * (0.5 + 0.5 * bt));
     this.neck = volume([[-0.5, 0.058], [-0.1, 0.05], [0.5, 0.05]], this.mats.skin);
 
     // Head: one head unit (0.237 m) from crown to chin, cranium plus a narrower jaw.
@@ -327,38 +428,54 @@ export class SurferRig {
     const jaw = ball(0.07, this.mats.skin);
     jaw.scale.set(0.9, 0.8, 0.95);
     jaw.position.set(0, -0.08, 0.012);
-    const hair = new THREE.Mesh(new THREE.SphereGeometry(0.106, 18, 14, 0, Math.PI * 2, 0, Math.PI * 0.6), this.mats.hair);
-    hair.scale.set(0.84, 1.02, 0.95);
-    hair.rotation.x = -0.4;
+    // The face is a texture on an ellipsoid cap over the front of the skull and jaw (brow to chin).
+    const face = new THREE.Mesh(new THREE.SphereGeometry(0.1, 24, 18, Math.PI / 2 - 0.95, 1.9, 0.75, 1.85), this.mats.face);
+    face.scale.set(0.8, 1.25, 0.9);
+    face.position.set(0, -0.03, 0.004);
+    const parts: THREE.Object3D[] = [face];
+    if (fc.hair) {
+      const hair = new THREE.Mesh(new THREE.SphereGeometry(0.106, 18, 14, 0, Math.PI * 2, 0, Math.PI * fc.hair.theta), this.mats.hair);
+      hair.scale.set(...fc.hair.scale);
+      hair.rotation.x = fc.hair.rot;
+      parts.push(hair);
+    }
     const nose = ball(0.016, this.mats.skin);
     nose.scale.set(0.8, 1.4, 1);
-    nose.position.set(0, -0.04, 0.09);
+    nose.position.set(0, -0.04, 0.1);
     const earL = ball(0.02, this.mats.skin);
     earL.scale.set(0.5, 1.2, 0.9);
     earL.position.set(-0.08, -0.02, 0);
     const earR = earL.clone();
     earR.position.x = 0.08;
-    const eyeL = ball(0.01, this.mats.hair);
-    eyeL.position.set(-0.03, -0.005, 0.082);
-    const eyeR = eyeL.clone();
-    eyeR.position.x = 0.03;
-    const browGeo = new THREE.BoxGeometry(0.03, 0.006, 0.01);
-    const browL = new THREE.Mesh(browGeo, this.mats.hair);
-    browL.position.set(-0.032, 0.02, 0.085);
-    const browR = browL.clone();
-    browR.position.x = 0.032;
-    const mouth = new THREE.Mesh(new THREE.BoxGeometry(0.036, 0.005, 0.008), this.mats.mouth);
-    mouth.position.set(0, -0.095, 0.075);
-    this.head.add(skull, jaw, hair, nose, earL, earR, eyeL, eyeR, browL, browR, mouth);
+    this.head.add(skull, jaw, nose, earL, earR, ...parts);
 
-    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, SHAFT, 10), this.mats.paddle);
+    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(pd.shaftR, pd.shaftR, SHAFT, 10), this.mats.paddle);
     shaft.position.y = SHAFT / 2;
-    const tgrip = new THREE.Mesh(new THREE.CylinderGeometry(0.019, 0.019, 0.13, 10), this.mats.paddle);
-    tgrip.rotation.z = Math.PI / 2;
-    const blade = new THREE.Mesh(bladeGeometry(), this.mats.blade);
+    let grip: THREE.Mesh;
+    if (pd.grip === 'palm') {
+      grip = ball(0.03, this.mats.paddle);
+      grip.scale.set(1.5, 0.75, 1);
+    } else {
+      grip = new THREE.Mesh(new THREE.CylinderGeometry(pd.shaftR + 0.003, pd.shaftR + 0.003, 0.13, 10), this.mats.paddle);
+      grip.rotation.z = Math.PI / 2;
+    }
+    const blade = new THREE.Mesh(bladeGeometry(pd), this.mats.blade);
     blade.position.y = SHAFT - 0.02;
     blade.rotation.x = 0.17;
-    this.paddle.add(shaft, tgrip, blade);
+    this.paddle.add(shaft, grip, blade);
+    if (pd.collar) {
+      const collar = new THREE.Mesh(new THREE.CylinderGeometry(pd.shaftR + 0.006, pd.shaftR + 0.006, 0.08, 10), this.mats.blade);
+      collar.position.y = SHAFT * 0.42;
+      this.paddle.add(collar);
+    }
+    if (look.facePhoto) {
+      const img = new Image();
+      img.onload = () => {
+        this.photo = img;
+        this.repaintFace();
+      };
+      img.src = look.facePhoto;
+    }
 
     this.body.add(
       this.pelvis,
@@ -393,8 +510,23 @@ export class SurferRig {
     this.mats.hair.color.set(p.hair);
     this.mats.paddle.color.set(p.paddle);
     this.mats.blade.color.set(p.blade);
-    paintDeck(this.deckCanvas.getContext('2d')!, p);
+    paintDeck(this.deckCanvas.getContext('2d')!, p, this.boardSpec.deck);
     this.deckTex.needsUpdate = true;
+    this.repaintFace();
+  }
+
+  private repaintFace(): void {
+    paintFace(this.faceCanvas.getContext('2d')!, this.look.face, this.mats.skin.color.getStyle(), this.mats.hair.color.getStyle(), this.photo);
+    this.faceTex.needsUpdate = true;
+  }
+
+  dispose(): void {
+    this.group.traverse((o) => {
+      if (o instanceof THREE.Mesh) o.geometry.dispose();
+    });
+    for (const mat of Object.values(this.mats)) mat.dispose();
+    this.deckTex.dispose();
+    this.faceTex.dispose();
   }
 
   /**
@@ -475,7 +607,7 @@ export class SurferRig {
     for (let i = 0; i < 2; i++) {
       const sideX = i === 0 ? -1 : 1;
       const foot = i === 0 ? this.footL : this.footR;
-      const hip = _p.hip.set(sideX * HIP_X * Math.cos(hipTw), this.hipY - 0.02, hips.z - sideX * HIP_X * Math.sin(hipTw));
+      const hip = _p.hip.set(sideX * this.hipX * Math.cos(hipTw), this.hipY - 0.02, hips.z - sideX * this.hipX * Math.sin(hipTw));
       const ankle = _p.ankle.set(foot.x, 0.08, foot.z);
       const hint = _p.hint.copy(this.kneeHint).addScaledVector(_p.tmp.set(sideX, 0, 0), 0.3);
       const knee = joint(hip, ankle, THIGH, SHIN, hint, _p.knee);
@@ -520,7 +652,7 @@ export class SurferRig {
     // Arms: the hand on the paddle side holds the shaft, the other one the grip.
     for (let i = 0; i < 2; i++) {
       const sideX = i === 0 ? -1 : 1;
-      const shoulder = _p.shoulder.set(sideX * SHOULDER_X * Math.cos(this.twist), shoulders.y - 0.01, shoulders.z - sideX * SHOULDER_X * Math.sin(this.twist));
+      const shoulder = _p.shoulder.set(sideX * this.shoulderX * Math.cos(this.twist), shoulders.y - 0.01, shoulders.z - sideX * this.shoulderX * Math.sin(this.twist));
       const target = sideX === side ? lowHand : grip;
       const hand = _p.hand.copy(target);
       const hint = _p.hint.set(sideX * 0.8, -0.6, -0.2);
