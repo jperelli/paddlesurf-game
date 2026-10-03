@@ -17,7 +17,7 @@ Open the printed URL, press any key and paddle out.
 
 1. **Waiting for the wave.** Waves come in sets: 3 to 7 small ones, then a set of 4 or 5 that grow and then shrink again (with some randomness). Each set wave has a **peak** (where it breaks first) and two **pockets** on either side of the breaking section. Paddle with the arrow keys, hold `Space` for power strokes. Power strokes fill the tiredness bar and get slower the more tired you are. When the crest reaches you:
    - in a pocket and not paddling into the peak: you are on, go to 2
-   - in the impact zone (under the lip or in fresh whitewater): wipeout if you sit still, are sideways to it, or the foam is too high; low fresh foam can be punched through by paddling straight out into it, and after a few seconds the foam has dissipated and rolls under you harmlessly
+   - in the impact zone: wipeout if you sit still, are sideways to it, hit the unbroken lip nose-first, or the whitewater is too high; low fresh foam can be punched through nose-first (or shoves you in if it catches you from behind), and after a few seconds the foam has dissipated and rolls under you harmlessly
    - sitting still in the pocket as it arrives also throws you
    - anywhere else: the wave passes under you
 2. **Riding.** The wave peels away from the peak and you ride away from the lip. `←`/`→` steer along the face (toward the lip or down to the trough). `↑`/`↓` step forward or back on the board: back foot = slower but turns much faster, front foot = slower and turns less, centre = fastest.

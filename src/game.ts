@@ -345,22 +345,30 @@ export class Game {
       const broken = brokenAmount(w, this.x, t, this.spot);
       const foamAge = broken > 0.5 ? brokenAge(w, this.x, t, this.spot) : 0;
       const foamHeight = h * (1 - 0.35 * broken);
-      const paddlingOut = this.vz < -0.6 && Math.abs(this.vx) < -this.vz;
+      const noseIn = this.vz < 0;
       if (broken > 0.5 && foamAge > FOAM_SOFT_AGE) {
         this.hud.flash('Old foam, it just rolled under you.');
         return;
       }
-      if (broken > 0.5 && paddlingOut && foamHeight < FOAM_PUNCH_HEIGHT) {
-        this.hud.flash('Punched through the foam.');
+      const shove = (msg: string) => {
+        this.hud.flash(msg);
         this.vz += 1.2 + foamHeight;
         this.fatigue = Math.min(1, this.fatigue + 0.06);
         this.lens.splash(3, false);
+      };
+      if (stopped) this.hud.flash('Sitting still when it broke on you.');
+      else if (Math.abs(this.vx) >= Math.abs(this.vz)) this.hud.flash('Sideways in the impact zone. Over you go.');
+      else if (broken > 0.5) {
+        if (foamHeight < FOAM_PUNCH_HEIGHT) {
+          shove(noseIn ? 'Punched through the foam.' : 'The foam shoved you toward the beach.');
+          return;
+        }
+        this.hud.flash('Too much foam to punch through.');
+      } else if (noseIn) this.hud.flash('Nose straight into the lip. Over the falls.');
+      else {
+        shove('The lip landed behind you and shoved you in.');
         return;
       }
-      if (stopped) this.hud.flash('Sitting still when it broke on you.');
-      else if (Math.abs(this.vx) > Math.abs(this.vz)) this.hud.flash('Sideways in the impact zone. Over you go.');
-      else if (broken > 0.5) this.hud.flash('Too much foam to punch through.');
-      else this.hud.flash('Right under the peak. The lip landed on you.');
       this.endRide('peak', w);
       return;
     }
