@@ -36,6 +36,9 @@ export class Hud {
   private endCard: HTMLElement;
   private startCard: HTMLElement;
   private spotsEl: HTMLElement;
+  private condsEl: HTMLElement;
+  private seedEl: HTMLInputElement;
+  private seedNote: HTMLElement;
   private msgTimer = 0;
 
   constructor(root: HTMLElement) {
@@ -59,6 +62,13 @@ export class Hud {
         <h1>Paddle Surf</h1>
         <div class="label">Spot</div>
         <div id="hud-spots" class="spots"></div>
+        <div class="label">Conditions</div>
+        <div id="hud-conds" class="spots conds"></div>
+        <div class="row seed-row"><span class="label">Session code</span>
+          <input id="hud-seed" maxlength="12" spellcheck="false" autocomplete="off">
+          <button id="hud-seed-new" class="mini">New</button>
+          <button id="hud-seed-copy" class="mini">Copy link</button>
+          <span id="hud-seed-note" class="label small"></span></div>
         <p>Wait for the set, paddle into the <b>pocket</b> next to the peak (not on it), then ride away from the breaking lip.</p>
         <ul>
           <li><b>Arrows</b> (or the on-screen pad): paddle (waiting) · left/right steer, up/down step forward/back on the board (riding)</li>
@@ -83,6 +93,12 @@ export class Hud {
     this.endCard = q('#hud-end');
     this.startCard = q('#hud-start');
     this.spotsEl = q('#hud-spots');
+    this.condsEl = q('#hud-conds');
+    this.seedEl = root.querySelector<HTMLInputElement>('#hud-seed')!;
+    this.seedNote = q('#hud-seed-note');
+    for (const el of [this.seedEl, q('#hud-seed-new'), q('#hud-seed-copy')]) {
+      for (const ev of ['pointerdown', 'click', 'keydown', 'keyup', 'touchstart']) el.addEventListener(ev, (e) => e.stopPropagation());
+    }
   }
 
   /** Level picker on the start card. Clicks here must not count as "press any key". */
@@ -101,6 +117,39 @@ export class Hud {
       });
       this.spotsEl.appendChild(b);
     });
+  }
+
+  setConditions(list: { id: string; name: string; desc: string }[], current: string, onPick: (id: string) => void): void {
+    this.condsEl.innerHTML = '';
+    for (const c of list) {
+      const b = document.createElement('button');
+      b.className = `spot${c.id === current ? ' on' : ''}`;
+      b.innerHTML = `<b></b><span></span>`;
+      b.querySelector('b')!.textContent = c.name;
+      b.querySelector('span')!.textContent = c.desc;
+      b.addEventListener('pointerdown', (e) => e.stopPropagation());
+      b.addEventListener('click', (e) => {
+        e.stopPropagation();
+        onPick(c.id);
+      });
+      this.condsEl.appendChild(b);
+    }
+  }
+
+  /** Session code field: typing or "New" changes the seed, "Copy link" shares the whole setup. */
+  setSeed(code: string): void {
+    if (this.seedEl.value !== code) this.seedEl.value = code;
+  }
+
+  bindSeed(onChange: (raw: string) => void, onNew: () => void, onCopy: () => void): void {
+    this.seedEl.addEventListener('input', () => onChange(this.seedEl.value));
+    this.seedEl.addEventListener('change', () => onChange(this.seedEl.value));
+    this.root.querySelector('#hud-seed-new')!.addEventListener('click', onNew);
+    this.root.querySelector('#hud-seed-copy')!.addEventListener('click', onCopy);
+  }
+
+  seedNoteText(s: string): void {
+    this.seedNote.textContent = s;
   }
 
   update(s: HudState, now: number): void {

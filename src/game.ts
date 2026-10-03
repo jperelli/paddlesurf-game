@@ -22,7 +22,8 @@ import {
 } from './wave';
 import type { Spot, Surfer } from './roster';
 import type { Hud } from './hud';
-import { describeConditions, rollConditions, tideRising, type Conditions } from './conditions';
+import { describeConditions, rollConditions, tideRising, type Conditions, type Preset } from './conditions';
+import { newSessionCode, seedRng } from './rng';
 import { LensDrops } from './lens';
 import { sunColor, sunElevation, sunLow } from './sky';
 
@@ -71,6 +72,8 @@ export class Game {
   phase: Phase = 'start';
   t = 0;
   conditions: Conditions = rollConditions();
+  preset: Preset = 'random';
+  seed = newSessionCode();
   spot: Spot;
   surfer: Surfer;
   hint = true;
@@ -186,7 +189,8 @@ export class Game {
 
   start(): void {
     this.phase = 'waiting';
-    this.conditions = rollConditions();
+    seedRng(`${this.seed}:${this.spot.name}:${this.preset}`);
+    this.conditions = rollConditions(this.preset);
     this.scheduler.reset(this.conditions);
     this.sea.patches.clear();
     this.lens.clear();
@@ -205,7 +209,7 @@ export class Game {
     this.heading = Math.PI;
     this.stance = 0;
     this.rig.resetWipeout();
-    this.hud.flash(`Paddle into position and wait for the set. Today: ${describeConditions(this.conditions)}.`, 6000);
+    this.hud.flash(`Paddle into position and wait for the set. Today: ${describeConditions(this.conditions)} · session ${this.seed}.`, 6000);
   }
 
   update(dt: number): void {

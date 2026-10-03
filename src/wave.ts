@@ -1,6 +1,7 @@
 // Wave model: sets, peak/pockets, breaking fronts and the height field the sea mesh samples.
 
 import { rollHollow, tideShift, type Conditions, type SecondSwell } from './conditions';
+import { random } from './rng';
 
 /** Which way a wave peels: 0 = A-frame (both pockets), 1 = rights only (+x), -1 = lefts only (-x). */
 export type Peel = 0 | 1 | -1;
@@ -269,7 +270,7 @@ export function seaHeightAt(waves: Wave[], x: number, z: number, t: number, spot
 }
 
 function rand(a: number, b: number): number {
-  return a + Math.random() * (b - a);
+  return a + random() * (b - a);
 }
 function randInt(a: number, b: number): number {
   return Math.floor(rand(a, b + 1));
@@ -281,7 +282,7 @@ function setRamp(i: number, n: number): number {
 }
 
 function pickPeel(spot: SpotConfig): Peel {
-  const r = Math.random();
+  const r = random();
   if (r < spot.rightOnly) return 1;
   if (r < spot.rightOnly + spot.leftOnly) return -1;
   return 0;
@@ -342,9 +343,9 @@ export class WaveScheduler {
       if (rf > 0) for (const f of w.fronts) f.startT += dt * rf;
       if (w.isSet && w.fronts.length > 0 && t > w.nextSectionT && cz < w.fadeZ) {
         w.nextSectionT = t + rand(3.5, 8);
-        if (Math.random() < spot.sectionChance) {
+        if (random() < spot.sectionChance) {
           const half = brokenHalfWidth(w, t, spot);
-          const side = w.peel !== 0 ? w.peel : Math.random() < 0.5 ? -1 : 1;
+          const side = w.peel !== 0 ? w.peel : random() < 0.5 ? -1 : 1;
           w.fronts.push({ x: w.peakX + side * (half + rand(9, 22)), startT: t, dir: 0 });
         }
       }
@@ -391,7 +392,7 @@ export class WaveScheduler {
     const breakZ = BREAK_Z + shift;
     const fadeZ = FADE_Z + shift;
     let reform: Reform | null = null;
-    if (isSet && height >= 0.9 && Math.random() < 0.25) {
+    if (isSet && height >= 0.9 && random() < 0.25) {
       const z0 = breakZ + rand(8, 14);
       reform = { z0, z1: Math.min(fadeZ - 6, z0 + rand(8, 12)) };
     }

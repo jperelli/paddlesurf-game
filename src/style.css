@@ -50,6 +50,19 @@ html, body, #app { margin: 0; height: 100%; overflow: hidden; background: #000; 
 .spots .spot.on { border-color: #f2c84b; background: rgba(242,200,75,0.18); }
 .spots .spot b { display: block; font-size: 15px; }
 .spots .spot span { display: block; font-size: 12px; opacity: 0.8; margin-top: 2px; }
+.conds .spot { padding: 6px 10px; }
+.conds .spot b { font-size: 13px; }
+.conds .spot span { font-size: 11px; }
+.seed-row { align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+.seed-row input {
+  width: 110px; padding: 5px 8px; font: inherit; font-size: 14px; letter-spacing: 2px; text-transform: uppercase;
+  color: #fff; background: rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.25); border-radius: 6px; pointer-events: auto;
+}
+.seed-row .mini {
+  padding: 5px 10px; font: inherit; font-size: 12px; color: #fff; background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.25); border-radius: 6px; cursor: pointer; pointer-events: auto;
+}
+.seed-row .mini:hover { background: rgba(255,255,255,0.18); }
 .card .go { text-align: center; font-weight: 700; opacity: 0.9; animation: pulse 1.6s infinite; }
 .card h2.bad { color: #ff8a73; margin: 0 0 6px; }
 .card h2.good { color: #86e39a; margin: 0 0 6px; }

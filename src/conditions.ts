@@ -9,6 +9,19 @@ export interface SecondSwell {
   period: number;
 }
 
+import { random } from './rng';
+
+export type Preset = 'random' | 'glassy' | 'offshore' | 'onshore' | 'crosswind' | 'current';
+
+export const PRESETS: { id: Preset; name: string; desc: string }[] = [
+  { id: 'random', name: 'Whatever comes', desc: 'random conditions' },
+  { id: 'glassy', name: 'Glassy', desc: 'no wind, no current' },
+  { id: 'offshore', name: 'Offshore', desc: 'hollow waves, spray off the lip' },
+  { id: 'onshore', name: 'Onshore', desc: 'crumbly, spilling waves' },
+  { id: 'crosswind', name: 'Crosswind', desc: 'wind along the beach' },
+  { id: 'current', name: 'Big current', desc: 'strong drift along the lineup' },
+];
+
 export interface Conditions {
   /** Crest rotation (radians). Positive: the crest line sits further out to sea on the right. */
   angle: number;
@@ -56,34 +69,65 @@ export function rollHollow(c: Conditions): number {
 }
 
 function rand(a: number, b: number): number {
-  return a + Math.random() * (b - a);
+  return a + random() * (b - a);
 }
 
 function sign(): number {
-  return Math.random() < 0.5 ? -1 : 1;
+  return random() < 0.5 ? -1 : 1;
 }
 
-export function rollConditions(): Conditions {
-  const angled = Math.random() < 0.35;
+export function rollConditions(preset: Preset = 'random'): Conditions {
+  const angled = random() < 0.35;
   const angle = (angled ? sign() * rand(0.1, 0.2) : rand(-0.05, 0.05));
-  const current = Math.random() < 0.5 ? 0 : sign() * rand(0.2, 0.6);
-  const w = Math.random();
+  const current = random() < 0.5 ? 0 : sign() * rand(0.2, 0.6);
+  const w = random();
   let windZ: number;
   if (w < 0.55) windZ = -rand(1.5, 6.5);
   else if (w < 0.8) windZ = rand(-0.8, 0.8);
   else windZ = rand(1.5, 4.5);
   const windX = rand(-2.5, 2.5);
   const swell2: SecondSwell | null =
-    Math.random() < 0.55
+    random() < 0.55
       ? {
           amp: rand(0.15, 0.3),
-          angle: (Math.random() < 0.5 ? -1 : 1) * rand(0.35, 0.7),
+          angle: (random() < 0.5 ? -1 : 1) * rand(0.35, 0.7),
           length: rand(22, 34),
           period: rand(7, 11),
         }
       : null;
   const hour = rand(7, 19);
-  return { angle, current, windX, windZ, tidePhase: rand(0, 2 * Math.PI), swell2, hour };
+  const c: Conditions = { angle, current, windX, windZ, tidePhase: rand(0, 2 * Math.PI), swell2, hour };
+  applyPreset(c, preset);
+  return c;
+}
+
+function applyPreset(c: Conditions, preset: Preset): void {
+  switch (preset) {
+    case 'glassy':
+      c.windX = 0;
+      c.windZ = 0;
+      c.current = 0;
+      break;
+    case 'offshore':
+      c.windZ = -rand(3, 5);
+      c.windX = rand(-1, 1);
+      break;
+    case 'onshore':
+      c.windZ = rand(3, 5);
+      c.windX = rand(-1, 1);
+      break;
+    case 'crosswind':
+      c.windX = sign() * rand(4, 6);
+      c.windZ = rand(-1, 1);
+      break;
+    case 'current':
+      c.current = sign() * rand(0.6, 0.9);
+      c.windX *= 0.4;
+      c.windZ *= 0.4;
+      break;
+    case 'random':
+      break;
+  }
 }
 
 export function windSpeed(c: Conditions): number {
