@@ -4,7 +4,7 @@ import { Sea } from './sea';
 import { SkyDome } from './sky';
 import { Wake } from './wake';
 import { Lips } from './lip';
-import { SurferRig, type Stance } from './surfer';
+import { SurferRig } from './surfer';
 import { lookKey } from './looks';
 import {
   SMALL_WAVE_MAX,
@@ -31,11 +31,17 @@ import { sunColor, sunElevation, sunLow } from './sky';
 import { t as tr } from './i18n';
 
 export type Phase = 'start' | 'waiting' | 'riding' | 'ended';
-export type EndReason = 'peak' | 'closeout' | 'caught' | 'overback' | 'faded';
+export type EndReason = 'peak' | 'closeout' | 'caught' | 'railed' | 'overback' | 'faded' | 'outran';
 
 export const POCKET_WIDTH = 6;
 const LINEUP_Z = -2;
-const WIPEOUTS: EndReason[] = ['peak', 'closeout', 'caught'];
+const WIPEOUTS: EndReason[] = ['peak', 'closeout', 'caught', 'railed'];
+/** Steering rate (rad/s) at full carve, before the fore/aft trim factor. */
+const CARVE_RATE = 8.5;
+/** Carve intensity above which the rail starts to catch. */
+const CARVE_LIMIT = 0.72;
+/** Position down the face (1 = trough) past which the wave has let go of you. */
+const OUTRUN_REL = 1.4;
 const HINTS_KEY = 'paddlesurf.hints.v2';
 /** Seconds after breaking by which whitewater has dissipated enough to roll under you harmlessly. */
 const FOAM_SOFT_AGE = 4;
@@ -50,6 +56,10 @@ interface Ride {
   time: number;
   points: number;
   lean: number;
+  /** Carve input, -1..1: eases in while a side key is held, decays when released. */
+  steer: number;
+  /** How far the rail has caught, 0..1: 1 is a fall. */
+  edge: number;
 }
 
 interface EndInfo {
@@ -97,7 +107,8 @@ export class Game {
   vx = 0;
   vz = 0;
   heading = Math.PI; // facing out to sea
-  stance: Stance = 0;
+  /** Fore/aft trim, -1 (tail) .. 1 (nose), continuous while riding. */
+  stance = 0;
   fatigue = 0;
   strokePhase = 0;
   paddleSide: 1 | -1 = 1;
@@ -432,7 +443,7 @@ export class Game {
 
   private startRide(w: Wave, dir: 1 | -1): void {
     this.phase = 'riding';
-    this.ride = { wave: w, dir, rel: 0.3, theta: 0.45, time: 0, points: 0, lean: 0 };
+    this.ride = { wave: w, dir, rel: 0.3, theta: 0.45, time: 0, points: 0, lean: 0, steer: 0, edge: 0 };
     this.stance = 0;
     this.caught++;
     this.hud.flash(tr(dir === 1 ? 'Got it! Riding →' : 'Got it! Riding ←'), 2000);
@@ -448,33 +459,51 @@ export class Game {
     const t = this.t;
     r.time += dt;
 
-    if (input.wasPressed('ArrowUp')) this.stance = Math.min(1, this.stance + 1) as Stance;
-    if (input.wasPressed('ArrowDown')) this.stance = Math.max(-1, this.stance - 1) as Stance;
-    const stanceSpeed = [0.85, 1.0, 0.9][this.stance + 1];
-    const stanceTurn = [1.55, 1.0, 0.6][this.stance + 1];
+    // Fore/aft trim: leaning further the longer the key is held (eases out to the limit), straight up on release.
+    const trimIn = (input.isDown('ArrowUp') ? 1 : 0) - (input.isDown('ArrowDown') ? 1 : 0);
+    if (trimIn === 0) this.stance = 0;
+    else this.stance += (trimIn - this.stance) * Math.min(1, 3.2 * dt);
+    const stanceSpeed = 1 + 0.2 * this.stance;
+    const stanceTurn = 1 - 0.45 * this.stance;
+
+    // Carve: the lean builds the longer the key is held (fast ease-in), eases back out when released.
+    const turnIn = (input.isDown('ArrowRight') ? 1 : 0) - (input.isDown('ArrowLeft') ? 1 : 0);
+    if (turnIn !== 0 && Math.sign(r.steer) !== -turnIn) {
+      r.steer += turnIn * (0.6 + 1.2 * Math.abs(r.steer)) * dt;
+      r.steer = THREE.MathUtils.clamp(r.steer, -1, 1);
+    } else {
+      r.steer *= Math.exp(-9 * dt);
+      if (Math.abs(r.steer) < 0.01) r.steer = 0;
+    }
+    // Past the limit the rail digs in; ease back off in time and it lets go again.
+    const over = (Math.abs(r.steer) - CARVE_LIMIT) / (1 - CARVE_LIMIT);
+    r.edge = THREE.MathUtils.clamp(r.edge + (over > 0 ? over / 1.6 : -1 / 0.6) * dt, 0, 1);
 
     const H = localHeight(w, this.x, t);
-    const turnIn = (input.isDown('ArrowRight') ? 1 : 0) - (input.isDown('ArrowLeft') ? 1 : 0);
-    const turnRate = 1.7 * stanceTurn;
-    const dTheta = turnIn * r.dir * turnRate * dt;
+    const dTheta = r.steer * r.dir * CARVE_RATE * stanceTurn * dt;
     r.theta = THREE.MathUtils.clamp(r.theta + dTheta, -0.95, 1.5);
+
+    const paddling = input.isDown('Space') && this.fatigue < 0.98;
+    if (paddling) this.fatigue = Math.min(1, this.fatigue + 0.18 * dt);
+    else this.fatigue = Math.max(0, this.fatigue - 0.05 * dt);
 
     const relC = THREE.MathUtils.clamp(r.rel, 0, 1);
     let S = (3.6 + 3.2 * H) * (0.65 + 0.35 * (1 - relC)) * stanceSpeed;
-    if (r.rel > 1) S *= Math.max(0.4, 1 - (r.rel - 1) * 2);
+    if (r.rel > 1) S *= Math.max(0.3, 1 - (r.rel - 1) * 2);
+    if (paddling) S += 2.8 * (1 - 0.5 * this.fatigue);
 
     const fl = faceLength(Math.max(H, 0.4));
     const vx = S * Math.cos(r.theta) * r.dir;
     let drel = (0.55 * S * Math.sin(r.theta)) / fl + 0.08;
-    if (r.rel > 1) drel -= (r.rel - 1) * 1.6;
+    if (r.rel > 1) drel -= Math.min(r.rel - 1, 0.275) * 1.2;
     r.rel += drel * dt;
     this.x += vx * dt;
     this.z = crestZAt(w, this.x, t) + r.rel * fl;
     this.vx = vx;
     this.vz = w.speed + drel * fl + Math.tan(w.angle) * vx;
     this.heading = lerpAngle(this.heading, Math.atan2(this.vx, this.vz), Math.min(1, 8 * dt));
-    const targetLean = -turnIn * r.dir * 0.35 * stanceTurn;
-    r.lean += (targetLean - r.lean) * Math.min(1, 6 * dt);
+    const targetLean = -r.steer * r.dir * 0.42 * stanceTurn;
+    r.lean += (targetLean - r.lean) * Math.min(1, 8 * dt);
 
     r.points += dt * H * (2 + 3 * Math.max(0, 0.45 - r.rel)) + Math.abs(dTheta) * H * 1.5;
 
@@ -486,9 +515,19 @@ export class Game {
       this.endRide(ahead ? 'closeout' : 'caught', w);
       return;
     }
+    if (r.edge >= 1) {
+      this.hud.flash(tr('Rail caught. Too much lean for too long.'));
+      this.endRide('railed', w);
+      return;
+    }
     if (r.rel < -0.15) {
       this.hud.flash(tr('You went over the back. Wave lost.'));
       this.endRide('overback', w);
+      return;
+    }
+    if (r.rel > OUTRUN_REL) {
+      this.hud.flash(tr('You outran the wave. It let you go.'));
+      this.endRide('outran', w);
       return;
     }
     if (H < 0.35) {
@@ -573,7 +612,7 @@ export class Game {
     g.rotateZ(roll + lean);
 
     const riding = this.phase === 'riding';
-    const crouch = riding ? 0.6 + 0.4 * Math.abs(this.ride?.lean ?? 0) / 0.35 : 0;
+    const crouch = riding ? 0.6 + 0.4 * Math.abs(this.ride?.lean ?? 0) / 0.42 : 0;
     const stroke = this.phase === 'waiting' ? this.strokePhase : 0;
     // Eyes on the wave: down the line at the breaking section while riding, at the next set wave while waiting.
     let lookYaw = 0;
@@ -582,7 +621,7 @@ export class Game {
     if (riding && this.ride) {
       lookYaw = Math.atan2(this.ride.dir * 6, -3) - this.heading;
       lookPitch = -0.15;
-      turn = -this.ride.lean / 0.35;
+      turn = -this.ride.lean / 0.42;
     } else if (this.phase === 'waiting') {
       const next = this.scheduler.nextSetWave(t, this.z);
       if (next) {
@@ -626,9 +665,16 @@ export class Game {
     const tp = new THREE.Vector3();
     const tl = new THREE.Vector3();
     if (this.phase === 'riding' && this.ride) {
-      const d = this.ride.dir;
-      tp.set(this.x - d * 13, 5.5, this.z + 10);
-      tl.set(this.x + d * 5, 0.8, this.z - 1);
+      // Chase from behind the board in the wave's frame (travel along the line plus up/down the face),
+      // kept in front of the crest so the lip never hides the surfer.
+      const r = this.ride;
+      const fx = Math.cos(r.theta) * r.dir;
+      const fz = Math.sin(r.theta);
+      const g = this.rig.group.position;
+      tp.set(this.x - fx * 7, 0, this.z - fz * 7 + 1.5);
+      tp.z = Math.max(tp.z, crestZAt(r.wave, tp.x, this.t) + 1.2);
+      tp.y = Math.max(g.y + 3, seaHeightAt(this.scheduler.waves, tp.x, tp.z, this.t, this.spot) + 2.2);
+      tl.set(this.x + fx * 3, g.y + 0.8, this.z + fz * 3);
     } else if (this.phase === 'ended' && this.end && this.ride) {
       const d = this.ride.dir;
       tp.set(this.x - d * 13, 6, this.z + 12);
@@ -644,10 +690,11 @@ export class Game {
       tp.set(this.x, 6.5, this.z + 15);
       tl.set(this.x, 2.5, this.z - 26);
     }
-    const k = this.camSnap ? 1 : 1 - Math.exp(-3 * dt);
+    const riding = this.phase === 'riding';
+    const k = this.camSnap ? 1 : 1 - Math.exp(-(riding ? 2.2 : 3) * dt);
     this.camSnap = false;
     this.camPos.lerp(tp, k);
-    this.camLook.lerp(tl, k);
+    this.camLook.lerp(tl, riding ? 1 - Math.exp(-4 * dt) : k);
     this.camera.position.copy(this.camPos);
     this.camera.lookAt(this.camLook);
   }

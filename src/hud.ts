@@ -6,14 +6,18 @@ const END_TITLES: Record<EndReason, string> = {
   peak: 'Wipeout at the peak',
   closeout: 'Closed out',
   caught: 'Caught by the foam',
+  railed: 'Caught a rail',
   overback: 'Over the back',
   faded: 'Ride complete',
+  outran: 'Outran the wave',
 };
 
 export interface HudState {
   phase: string;
   fatigue: number;
   stance: number;
+  carve: number;
+  edge: number;
   score: number;
   caught: number;
   setLabel: string;
@@ -28,7 +32,8 @@ export class Hud {
   private setEl: HTMLElement;
   private msgEl: HTMLElement;
   private fatigueBar: HTMLElement;
-  private stanceEls: HTMLElement[];
+  private trimKnob: HTMLElement;
+  private carveBar: HTMLElement;
   private scoreEl: HTMLElement;
   private caughtEl: HTMLElement;
   private rideEl: HTMLElement;
@@ -55,9 +60,11 @@ export class Hud {
         <div id="hud-set" class="set"></div>
         <div class="label">${t('Tiredness')}</div>
         <div class="bar"><div id="hud-fatigue" class="fill"></div></div>
-        <div class="row stance-row"><span class="label">${t('Stance')}</span>
-          <span class="stance"><i data-s="-1"></i><i data-s="0"></i><i data-s="1"></i></span>
-          <span class="label small">${t('back · centre · front')}</span></div>
+        <div class="row stance-row"><span class="label">${t('Lean')}</span>
+          <span class="trim"><i id="hud-trim" class="knob"></i></span>
+          <span class="label small">${t('tail · nose')}</span></div>
+        <div class="row stance-row"><span class="label">${t('Carve')}</span>
+          <span class="bar carve"><span id="hud-carve" class="fill"></span><i class="limit"></i></span></div>
         <div class="row"><span>${t('Score')} <b id="hud-score">0</b></span><span>${t('Waves')} <b id="hud-caught">0</b></span><span id="hud-ride"></span></div>
       </div>
       <div id="hud-msg" class="msg"></div>
@@ -67,14 +74,15 @@ export class Hud {
         <p class="small">${t('Best runs: waves and points in one session without falling.')}</p>
         <div id="hud-board-list"></div>
       </div>
-      <div class="panel bottom controls keyboard-only">${t('←↑↓→ paddle / steer · Space power · ↑↓ stance while riding · H hints · Esc settings')}</div>
+      <div class="panel bottom controls keyboard-only">${t('←→ paddle / carve (hold to lean harder) · ↑↓ paddle / lean nose or tail · Space paddle · H hints · Esc settings')}</div>
     `;
     const q = (id: string) => root.querySelector<HTMLElement>(id)!;
     this.phaseEl = q('#hud-phase');
     this.setEl = q('#hud-set');
     this.msgEl = q('#hud-msg');
     this.fatigueBar = q('#hud-fatigue');
-    this.stanceEls = Array.from(root.querySelectorAll<HTMLElement>('.stance i'));
+    this.trimKnob = root.querySelector('#hud-trim')!;
+    this.carveBar = root.querySelector('#hud-carve')!;
     this.scoreEl = q('#hud-score');
     this.caughtEl = q('#hud-caught');
     this.rideEl = q('#hud-ride');
@@ -112,7 +120,10 @@ export class Hud {
     this.setEl.textContent = s.setLabel;
     this.fatigueBar.style.width = `${Math.round(s.fatigue * 100)}%`;
     this.fatigueBar.classList.toggle('hot', s.fatigue > 0.7);
-    for (const el of this.stanceEls) el.classList.toggle('on', Number(el.dataset.s) === s.stance);
+    this.trimKnob.style.left = `${Math.round(50 + 50 * s.stance)}%`;
+    this.carveBar.style.width = `${Math.round(s.carve * 100)}%`;
+    this.carveBar.classList.toggle('hot', s.edge > 0.05);
+    this.carveBar.style.opacity = String(0.6 + 0.4 * s.edge);
     this.scoreEl.textContent = String(s.score);
     this.caughtEl.textContent = String(s.caught);
     this.rideEl.textContent = s.phase === 'riding' ? `+${Math.round(s.ridePoints * 10)}` : '';
@@ -130,7 +141,7 @@ export class Hud {
 
   /** Wave-over card. A wipeout ends the run: `run` carries its totals and the card asks for a name for the leaderboard. */
   showEnd(reason: EndReason, points: number, rideTime: number, run: RunResult | null): void {
-    const wipe = reason === 'peak' || reason === 'closeout' || reason === 'caught';
+    const wipe = reason === 'peak' || reason === 'closeout' || reason === 'caught' || reason === 'railed';
     this.endCard.innerHTML = `
       <h2 class="${wipe ? 'bad' : 'good'}">${t(END_TITLES[reason])}</h2>
       <p>${rideTime > 0 ? t('Ride {s} s · ', { s: rideTime.toFixed(1) }) : ''}<b>+${points}</b> ${t('points')}</p>`;

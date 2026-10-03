@@ -109,6 +109,8 @@ function frame(now: number): void {
       phase: game.phase,
       fatigue: game.fatigue,
       stance: game.stance,
+      carve: Math.abs(game.ride?.steer ?? 0),
+      edge: game.ride?.edge ?? 0,
       score: game.score,
       caught: game.caught,
       setLabel: starting ? '' : game.setLabel(),

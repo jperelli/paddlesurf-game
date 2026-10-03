@@ -36,8 +36,8 @@ const ES: Record<string, string> = {
   'Paddle out': 'A remar',
   'Wait for the set, paddle into the <b>pocket</b> next to the peak (not on it), then ride away from the breaking lip.':
     'Esperá la serie, remá hacia el <b>hombro</b> al lado del pico (no encima), y después surfeá alejándote del labio que rompe.',
-  '<b>Arrows</b> paddle / steer, <b>up/down</b> step on the board while riding, <b>Space</b> power stroke, <b>H</b> hints, <b>Esc</b> settings.':
-    '<b>Flechas</b> remar / girar, <b>arriba/abajo</b> paso adelante/atrás surfeando, <b>Espacio</b> remada fuerte, <b>H</b> pistas, <b>Esc</b> ajustes.',
+  '<b>Arrows</b> paddle; on the wave <b>left/right</b> carve (hold to lean harder, past the mark you catch a rail), <b>up/down</b> lean to the nose or tail, <b>Space</b> paddle, <b>H</b> hints, <b>Esc</b> settings.':
+    '<b>Flechas</b> remar; en la ola <b>izquierda/derecha</b> giro (mantené para inclinarte más, pasada la marca te clava el canto), <b>arriba/abajo</b> peso a la punta o a la cola, <b>Espacio</b> remar, <b>H</b> pistas, <b>Esc</b> ajustes.',
   'Link copied: same spot, conditions and waves for your friends': 'Link copiado: mismo lugar, condiciones y olas para tus amigos',
   // Spot summary
   'rights only': 'solo derechas',
@@ -81,14 +81,15 @@ const ES: Record<string, string> = {
   'tide dropping': 'marea bajando',
   // HUD
   Tiredness: 'Cansancio',
-  Stance: 'Postura',
-  'back · centre · front': 'atrás · centro · adelante',
+  Lean: 'Peso',
+  'tail · nose': 'cola · punta',
+  Carve: 'Giro',
   Score: 'Puntos',
   Waves: 'Olas',
   Close: 'Cerrar',
   'Best runs: waves and points in one session without falling.': 'Mejores rachas: olas y puntos en una sesión sin caerse.',
-  '←↑↓→ paddle / steer · Space power · ↑↓ stance while riding · H hints · Esc settings':
-    '←↑↓→ remar / girar · Espacio fuerza · ↑↓ postura surfeando · H pistas · Esc ajustes',
+  '←→ paddle / carve (hold to lean harder) · ↑↓ paddle / lean nose or tail · Space paddle · H hints · Esc settings':
+    '←→ remar / girar (mantené para inclinarte más) · ↑↓ remar / peso a punta o cola · Espacio remar · H pistas · Esc ajustes',
   Ready: 'Listo',
   '1 · Waiting for the wave': '1 · Esperando la ola',
   '2 · Riding': '2 · Surfeando',
@@ -96,6 +97,8 @@ const ES: Record<string, string> = {
   'Wipeout at the peak': 'Revolcón en el pico',
   'Closed out': 'Cerró',
   'Caught by the foam': 'Te agarró la espuma',
+  'Caught a rail': 'Te clavó el canto',
+  'Outran the wave': 'Le ganaste a la ola',
   'Over the back': 'Por detrás de la ola',
   'Ride complete': 'Ola completa',
   'Ride {s} s · ': 'Ola de {s} s · ',
@@ -146,6 +149,8 @@ const ES: Record<string, string> = {
   'Got it! Riding ←': '¡La agarraste! Surfeando ←',
   'It closed out in front of you.': 'Cerró adelante tuyo.',
   'The foam caught up with you.': 'Te alcanzó la espuma.',
+  'Rail caught. Too much lean for too long.': 'Se clavó el canto. Demasiada inclinación por mucho tiempo.',
+  'You outran the wave. It let you go.': 'Le ganaste a la ola. Te soltó.',
   'You went over the back. Wave lost.': 'Te fuiste por detrás. Ola perdida.',
   'The wave faded out. Nice ride!': 'La ola se apagó. ¡Buena ola!',
   'Back in the lineup.': 'De vuelta en el pico.',

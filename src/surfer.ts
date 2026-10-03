@@ -3,7 +3,6 @@ import { BOARDS, BODIES, DEFAULT_LOOK, FACES, PADDLES, paintFace, type BoardSpec
 import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { SurferPalette } from './palette';
 
-export type Stance = -1 | 0 | 1;
 
 // Board (metres). Local +z is the nose, +x is the right rail.
 const RAIL = 0.05;
@@ -533,7 +532,7 @@ export class SurferRig {
   }
 
   /**
-   * @param stance -1 back, 0 centre, 1 front
+   * @param stance fore/aft trim, -1 tail .. 1 nose
    * @param strokePhase paddling animation phase (radians), 0 to freeze
    * @param crouch 0..1 (riding)
    * @param side which rail the paddle (and, when riding, the surfer's chest) faces: +1 right, -1 left
@@ -542,7 +541,7 @@ export class SurferRig {
    * @param turn -1..1 turning input: shoulders wind into the turn, hips counter-rotate
    * @param idle seconds of standing around (0 = none): slow weight shifts and a paddle that swings a little
    */
-  pose(stance: Stance, strokePhase: number, crouch: number, side: 1 | -1, lookYaw = 0, lookPitch = 0, turn = 0, idle = 0): void {
+  pose(stance: number, strokePhase: number, crouch: number, side: 1 | -1, lookYaw = 0, lookPitch = 0, turn = 0, idle = 0): void {
     const riding = strokePhase === 0 && crouch > 0;
     const k = 0.18;
     this.body.position.z = approach(this.body.position.z, stance * 0.45, k);
@@ -587,7 +586,7 @@ export class SurferRig {
     }
     // Weight shift: a step forward leans the chest over the nose, a step back sits into the tail.
     lean += 0.12 * stance;
-    if (stance < 0) hipY -= 0.06;
+    if (stance < 0) hipY += 0.06 * stance;
     if (rag > 0) {
       // Ragdoll: limbs flung out, paddle let go, everything loose and wobbling.
       yaw = this.yaw;
